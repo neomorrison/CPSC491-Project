@@ -37,13 +37,11 @@ If everyone's good with this, we should update the Objectives section so it matc
 ## How the repo will be set up
 
 ```
-docs/          proposal stuff, diagrams, meeting notes, UX files
+README.md      this file: project overview
 app/           the React Native app
-gamification/  XP, levels, streak rules + tests
-supabase/      database setup
+backend/       Supabase tables, server functions, and the gamification engine
 mcp-server/    the AI assistant connection
-ai/            prompts and safety rules for the AI plan
-pose/          camera form checking experiments (if we get to it)
+docs/          stuff we build from
 ```
 
 ## Who's doing what
