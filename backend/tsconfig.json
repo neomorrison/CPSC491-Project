@@ -1,0 +1,15 @@
+{
+  // Type checks the gamification engine and tests with Node's TypeScript.
+  // The edge function entry files use Deno imports (npm:, jsr:), so Deno checks those instead.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["supabase/functions/_shared/gamification/**/*.ts", "tests/**/*.ts"]
+}
