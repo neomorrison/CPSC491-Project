@@ -230,6 +230,77 @@ if (!fontsLoaded) {
             <Text>{profile.experience === experience ? '✓ ' : ''}{experience}</Text></Pressable>)}
         <Text style={styles.caption}>Edits update this session immediately. Additional settings and permanent saving will be connected later.</Text>
         </View>}
+
+      
+{/* LOG WORKOUT SCREEN */}
+{screen === 'Log' && (
+  <View style={styles.card}>
+    <Text style={styles.workoutTitle}>Log Workout</Text>
+
+    <Text style={styles.body}>Workout name</Text>
+    <TextInput
+      accessibilityLabel="Workout name"
+      placeholder="e.g. Running, Yoga, Weightlifting"
+      value={workoutName}
+      onChangeText={setWorkoutName}
+      style={styles.input}
+    />
+
+    <Text style={styles.body}>Duration (minutes)</Text>
+    <TextInput
+      accessibilityLabel="Workout duration"
+      placeholder="e.g. 30"
+      keyboardType="number-pad"
+      value={duration}
+      onChangeText={setDuration}
+      style={styles.input}
+    />
+
+    {button('Save Workout', saveWorkout)}
+    {button('Back to Home', () => setScreen('Home'))}
+  </View>
+)}
+
+{/* WORKOUT HISTORY SCREEN */}
+{screen === 'Workouts' && (
+  <View style={{ gap: 16 }}>
+    <Text style={styles.workoutTitle}>My Workouts</Text>
+    <Text style={styles.caption}>
+      Your recent workout activity
+    </Text>
+
+    {workouts.length === 0 ? (
+      <View style={styles.card}>
+        <Text style={styles.body}>
+          You haven't logged any workouts yet.
+        </Text>
+        <Text style={styles.caption}>
+          Start your fitness journey by logging your first workout!
+        </Text>
+        {button('Log Your First Workout', () => setScreen('Log'))}
+      </View>
+    ) : (
+      [...workouts].reverse().map((workout) => (
+        <View key={workout.id} style={styles.card}>
+          <Text style={styles.title}>{workout.name}</Text>
+
+          <Text style={styles.body}>
+            Duration: {workout.minutes} minutes
+          </Text>
+
+          <Text style={styles.caption}>
+            Date: {workout.date}
+          </Text>
+        </View>
+      ))
+    )}
+
+    {workouts.length > 0 &&
+      button('+ Log Another Workout', () => setScreen('Log'))}
+  </View>
+)}
+
+
         </ScrollView>
          <BottomNav
             selected={screen}
