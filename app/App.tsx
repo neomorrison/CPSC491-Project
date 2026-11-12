@@ -230,6 +230,35 @@ if (!fontsLoaded) {
             <Text>{profile.experience === experience ? '✓ ' : ''}{experience}</Text></Pressable>)}
         <Text style={styles.caption}>Edits update this session immediately. Additional settings and permanent saving will be connected later.</Text>
         </View>}
+
+      {screen === 'Log' && (
+        <View style={styles.card}>
+          <Text style={styles.workoutTitle}>Log Workout</Text>
+
+          <Text style={styles.body}>Workout name</Text>
+          <TextInput
+            accessibilityLabel="Workout name"
+            placeholder="e.g. Running, Yoga, Weightlifting"
+            value={workoutName}
+            onChangeText={setWorkoutName}
+            style={styles.input}
+          />
+
+          <Text style={styles.body}>Duration (minutes)</Text>
+          <TextInput
+            accessibilityLabel="Workout duration"
+            placeholder="e.g. 30"
+            keyboardType="number-pad"
+            value={duration}
+            onChangeText={setDuration}
+            style={styles.input}
+          />
+
+          {button('Save Workout', saveWorkout)}
+          {button('Back to Home', () => setScreen('Home'))}
+  </View>
+)}
+
         </ScrollView>
          <BottomNav
             selected={screen}
