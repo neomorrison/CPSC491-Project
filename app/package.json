@@ -7,6 +7,7 @@
     "@expo/metro-runtime": "~58.0.17",
     "expo": "~58.0.25",
     "expo-font": "~58.0.12",
+    "expo-linear-gradient": "~58.0.4",
     "expo-splash-screen": "~58.0.14",
     "expo-status-bar": "~58.0.5",
     "react": "19.3.0",

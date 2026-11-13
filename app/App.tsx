@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StatusBar } from 'expo-status-bar'; 
 import BottomNav from './src/components/BottomNav'; 
-
+import ProfileScreen from './src/screens/ProfileScreen';
 // The font for the whole app 
 import { useFonts, Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold} from '@expo-google-fonts/inter';
 
@@ -82,9 +82,13 @@ export default function App() {
     const xp = workoutXp + (challengeClaimed ? 40 : 0);
 
     // Level 1 starts at 0 XP; provisional thresholds 100, 200, 300... per level
-    let level = 1; let levelXp = xp; 
-    while (levelXp >= 100 * (level + 1)) { levelXp -= 100 * (level + 1); level++; }
-    const nextLevelXp = 100 * (level + 1); 
+    let level = 1; 
+    let levelXp = xp; 
+    while (levelXp >= 100 * level) { 
+      levelXp -= 100 * level; 
+      level++; 
+    }
+    const nextLevelXp = 100 * level; 
     const challengeReady =   
       challengeJoined && 
       workouts.some(w => w.date === today && w.minutes >= 10);
@@ -213,24 +217,28 @@ if (!fontsLoaded) {
       </>}
 
 
-        {/* Temporary profile edit setup */}
-
-      {screen === 'Profile' && <View style={styles.card}>
-        <Text style={styles.name}>Your profile</Text>
-        <Text>Display name</Text>
-        <TextInput accessibilityLabel="Display name" 
-        placeholder="Enter your display name"
-          value={profile.displayName} onChangeText={displayName => setProfile(p => ({ ...p, displayName }))} style={styles.input} />
-        <Text>Weekly workout target</Text>
-        <TextInput accessibilityLabel="Weekly workout target" placeholder="Set a target"
-          keyboardType="number-pad" value={profile.weeklyTarget}
-          onChangeText={weeklyTarget => setProfile(p => ({ ...p, weeklyTarget: weeklyTarget.replace(/[^0-9]/g, '') }))} style={styles.input} />
-        <Text>Experience level</Text>{['Beginner', 'Intermediate', 'Advanced'].map(experience =>
-          <Pressable key={experience} accessibilityRole="button" onPress={() => setProfile(p => ({ ...p, experience }))} style={styles.input}>
-            <Text>{profile.experience === experience ? '✓ ' : ''}{experience}</Text></Pressable>)}
-        <Text style={styles.caption}>Edits update this session immediately. Additional settings and permanent saving will be connected later.</Text>
-        </View>}
-
+       {/* Profile overview: receives shared user data from App. */}
+       {screen === 'Profile' && (
+         <ProfileScreen
+           displayName={profile.displayName}
+           rank={
+              level >= 20 ? 'Legend' :
+              level >= 15 ? 'Athlete' :
+              level >= 10 ? 'Grinder' :
+              level >= 5 ? 'Regular' :
+              'Starter'
+           }
+           level={level}
+           xpIntoLevel={levelXp}
+           xpForNextLevel={nextLevelXp}
+           onEditProfile={() => {
+             Alert.alert(
+                'Edit Profile',
+                'The edit screen will be connected next.'
+             );
+           }}
+        />
+      )}
       
 {/* LOG WORKOUT SCREEN */}
 {screen === 'Log' && (
