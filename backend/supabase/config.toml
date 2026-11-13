@@ -1,0 +1,11 @@
+# Supabase CLI settings. Everything not listed here uses the CLI defaults.
+project_id = "cpsc491-fitness"
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+# daily-streaks is called by a scheduled job, not a signed-in user.
+# It checks its own CRON_SECRET header instead of a user login.
+[functions.daily-streaks]
+verify_jwt = false
