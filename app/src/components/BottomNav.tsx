@@ -1,3 +1,8 @@
+import HomeIcon from '../../assets/Home Icon.svg';
+import WorkoutsIcon from '../../assets/Workouts Icon.svg';
+import ProgressIcon from '../../assets/Progress Icon.svg';
+import ProfileIcon from '../../assets/Profile Icon.svg';
+
 import {
   Pressable,
   StyleSheet,
@@ -19,6 +24,22 @@ const tabs: Tab[] = [
   'Progress',
   'Profile',
 ];
+
+// The center Log button uses its existing diamond and plus sign.
+const tabIcons = {
+  Home: HomeIcon,
+  Workouts: WorkoutsIcon,
+  Progress: ProgressIcon,
+  Profile: ProfileIcon,
+};
+
+const iconSizes = {
+  Home: { width: 25, height: 25 },
+  Workouts: { width: 36, height: 36 },
+  Progress: { width: 28, height: 28 },
+  Profile: { width: 25, height: 25 },
+};
+
 
 export default function BottomNav({
   selected,
@@ -46,6 +67,8 @@ export default function BottomNav({
       {tabs.map(tab => {
         const isLog = tab === 'Log';
         const isSelected = selected === tab;
+        const Icon = tab === 'Log' ? null : tabIcons[tab];
+        const iconSize = tab === 'Log' ? null : iconSizes[tab];
 
         return (
           <Pressable
@@ -74,13 +97,15 @@ export default function BottomNav({
               </View>
             ) : (
               <View style={styles.iconSlot}>
-                {/* Replace with this tab's SVG icon. */}
-                <View
-                  style={[
-                    styles.placeholderIcon,
-                    isSelected && styles.selectedIcon,
-                  ]}
-                />
+
+             {/* Navbar icon measurements */}
+                {Icon && iconSize && (
+                  <Icon
+                    width={iconSize.width}
+                    height={iconSize.height}
+                    opacity={isSelected ? 1 : 0.75}
+                  />
+                )}
               </View>
             )}
 
@@ -150,7 +175,7 @@ const styles = StyleSheet.create({
     opacity: 1,
   },
 
-    label: {
+  label: {
     fontFamily: 'Inter_400Regular',
     fontSize: 10,
     color: '#FFFFFF',

@@ -22,6 +22,8 @@ type Props = {
     // shared circles here so they appear over the gradient. 
     actions?: ReactNode; 
 
+    summary?: ReactNode; 
+
     challengesCompleted: number; 
     medalsEarned: number; 
 
@@ -109,7 +111,7 @@ function WorkoutRing() {
             cy={50}
             r={38}
             fill="none"
-            stroke={`url{#${id}`}
+            stroke={`url(#${id})`}
             strokeWidth={7}
             strokeDasharray={[
                 innerLength * arcFraction, 
@@ -158,6 +160,7 @@ function GradientDayLabel({
 export default function HomeScreen({
     displayName, 
     actions, 
+    summary, 
     challengesCompleted, 
     medalsEarned, 
     challengesTotal, 
@@ -371,6 +374,8 @@ export default function HomeScreen({
             <Arrow color="#006868" />
           </Pressable>
         </View>
+        {/* Weekly goal, milestone, sreak and total XP: For home screen */}
+        {summary}
       </View>
     </View>
   );
@@ -437,8 +442,9 @@ const styles = StyleSheet.create({
   week: {
     flex: 1,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
+    gap: 10, 
   },
 
   datePill: {
@@ -611,8 +617,8 @@ const styles = StyleSheet.create({
 
   ring: {
     position: 'absolute',
-    right: 16,
-    top: 48,
+    right: 24,
+    top: 36,
   },
 
   loggedLabel: {

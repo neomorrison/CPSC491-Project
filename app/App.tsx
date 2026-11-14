@@ -4,6 +4,7 @@ import BottomNav from './src/components/BottomNav';
 import HomeScreen from './src/screens/HomeScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import ScreenActions from './src/components/ScreenActions';
+import HomeSummary from './src/components/HomeSummary';
 // The font for the whole app 
 import { useFonts, Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold} from '@expo-google-fonts/inter';
 
@@ -185,6 +186,24 @@ if (!fontsLoaded) {
         'The Challenges screen will be connected here.'
       )
     }
+    summary={
+       <HomeSummary
+          weeklyWorkouts={weeklyWorkouts.length}
+          weeklyTarget={target}
+          totalXp={xp}
+          level={level}
+          xpIntoLevel={levelXp}
+         xpForNextLevel={nextLevelXp}
+         rank={
+           level >= 20 ? 'Legend' :
+           level >= 15 ? 'Athlete' :
+           level >= 10 ? 'Grinder' :
+           level >= 5 ? 'Regular' :
+           'Starter'
+        }
+        streak={streak}
+      />
+    }
     onMedals={() => setScreen('Profile')}
     onProgress={() => setScreen('Progress')}
     onOpenWorkout={() => setScreen('Workouts')}
@@ -294,6 +313,7 @@ if (!fontsLoaded) {
 </View>
  );
 }
+
 
 
 const styles = StyleSheet.create({
