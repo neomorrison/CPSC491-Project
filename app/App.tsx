@@ -44,7 +44,7 @@ export default function App() {
     const [screen, setScreen] = useState<
        'Home' | 'Workouts' | 'Log' | 'Progress' | 'Profile'
     >('Home');
-    const [profile, setProfile] = useState({displayName: '', weeklyTarget: '', experience: ''});
+    const [profile, setProfile] = useState({displayName: '', weeklyTarget: '', experience: '', plannedDays: [] as string []});
     const [workouts, setWorkouts] = useState<Workout[]>([]);
     const [workoutName, setWorkoutName] = useState('');
     const [duration, setDuration] = useState('');
@@ -203,10 +203,13 @@ if (!fontsLoaded) {
             <Text style={styles.caption}> No workout plan set yet.</Text>
             {button('Log a workout', () => setScreen('Log'))}</View>
             
-         <View style={styles.card}><Text style={styles.title}> Weekly goal</Text>
-           <Text style={styles.stat}>{xp} XP</Text><ProgressBar value={levelXp} total={nextLevelXp} />
+         <View style={styles.card}>
+          <Text style={styles.title}> Weekly goal</Text>
+           <Text style={styles.stat}>{xp} XP</Text>
+           <ProgressBar value={levelXp} total={nextLevelXp} />
            <Text style={styles.caption}>{nextLevelXp - levelXp} XP to level {level + 1}</Text></View>
-        <View style={[styles.card, styles.half]}><Text style={styles.title}>Current streak</Text><Text style={styles.stat}>{streak} days</Text></View>
+        <View style={[styles.card, styles.half]}><Text style={styles.title}>Current streak</Text>
+        <Text style={styles.stat}>{streak} days</Text></View>
         <View style={styles.card}><Text style={styles.title}>Daily starter challenge</Text>
           <Text style={styles.body}>Log a workout of at least 10 minutes today.</Text>
           {challengeClaimed ? <Text>Completed · medal earned</Text> : !challengeJoined
@@ -217,10 +220,12 @@ if (!fontsLoaded) {
       </>}
 
 
-       {/* Profile overview: receives shared user data from App. */}
+       {/* PROFILE BLOCK for receiving shared user data from App. */}
        {screen === 'Profile' && (
          <ProfileScreen
            displayName={profile.displayName}
+           experience={profile.experience}
+           plannedDays={profile.plannedDays}
            rank={
               level >= 20 ? 'Legend' :
               level >= 15 ? 'Athlete' :
@@ -231,12 +236,12 @@ if (!fontsLoaded) {
            level={level}
            xpIntoLevel={levelXp}
            xpForNextLevel={nextLevelXp}
-           onEditProfile={() => {
-             Alert.alert(
-                'Edit Profile',
-                'The edit screen will be connected next.'
-             );
-           }}
+           onSaveProfile={changes => {
+            setProfile(previous => ({
+              ...previous, 
+              ...changes, 
+           })); 
+          }}
         />
       )}
       

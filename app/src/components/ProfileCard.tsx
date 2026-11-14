@@ -9,6 +9,7 @@ import {
     View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient'; 
+import ProfileExtras from './ProfileExtras';
 
 type ProfileCardProps = {
     displayName: string;
