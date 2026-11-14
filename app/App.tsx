@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StatusBar } from 'expo-status-bar'; 
 import BottomNav from './src/components/BottomNav'; 
+import HomeScreen from './src/screens/HomeScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import ScreenActions from './src/components/ScreenActions';
 // The font for the whole app 
@@ -132,112 +133,63 @@ if (!fontsLoaded) {
             >
         <StatusBar style="dark" />
 
-        {/* Shared header stays above the scrolling screen content. */}
+        {/* Brand appears on all main screens and the home renders its own circles inside the gradient  */}
         <View style={styles.screenActions}>
         <Text style={styles.brand}>Ascend</Text>
 
-          <ScreenActions
-            onNavigate={destination => setScreen(destination)}
-            onChallenges={() =>
-           Alert.alert(
+          {screen !== 'Home' && (
+    <ScreenActions
+      onNavigate={destination => setScreen(destination)}
+      onChallenges={() =>
+        Alert.alert(
+          'Challenges',
+          'The Challenges screen will be connected here.'
+        )
+      }
+    />
+   )}
+   </View>
+
+   <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={[
+       styles.content,
+       screen === 'Home' && styles.homeContent,
+    ]}
+      contentInsetAdjustmentBehavior="automatic"
+      keyboardShouldPersistTaps="handled"
+    >
+          {/* Home receives shared data and navigation callbacks from App. */}
+{screen === 'Home' && (
+  <HomeScreen
+    displayName={profile.displayName}
+    challengesCompleted={challengeClaimed ? 1 : 0}
+    medalsEarned={medals}
+    workoutsLoggedToday={
+      workouts.filter(workout => workout.date === today).length
+    }
+    actions={
+      <ScreenActions
+        onNavigate={destination => setScreen(destination)}
+        onChallenges={() =>
+          Alert.alert(
             'Challenges',
             'The Challenges screen will be connected here.'
           )
         }
       />
-   </View>
-
-   <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.content}
-      contentInsetAdjustmentBehavior="automatic"
-      keyboardShouldPersistTaps="handled"
-    >
-          {screen === 'Home' && <>
-
-          <View style={styles.greeting}>
-            <Text style={styles.body}>Welcome{profile.displayName.trim() ? ',': ''}</Text>
-            <Text style={styles.name}>{profile.displayName.trim() || 'Set up your profile'}</Text>
-            <Text style={styles.caption}>
-                {now.toLocaleDateString(undefined, 
-                { weekday: 'long', 
-                    month: 'long', 
-                    day: 'numeric', 
-                    year: 'numeric',
-                })}
-            </Text>
-            
-          </View>
-          <View style={styles.calendar}>
-            {week.map((date) => (
-               <View 
-                 key={dateKey(date)}
-                 style={[
-                   styles.day, 
-                   dateKey(date) === today && 
-        styles.selectedDay,
-                        ]}
-                     >
-                       <Text style={styles.dayLabel}>
-        {date.toLocaleDateString(undefined, { 
-                            weekday: 'short', 
-                            })}
-                            </Text>     
-                <Text style={styles.dayNumber}>
-                    {date.getDate()}
-                    </Text>
-                <Text style={styles.caption}>
-                    {activeDays.has(dateKey(date)) ? 
-    '✓' : '·'}
-                    </Text>
-                  </View>
-                ))}
-            </View>
- 
-            <View style={[styles.row]}>
-                <View 
-                style={[
-                    styles.shortcut, 
-                    { backgroundColor: colors.orange }
-                    ]}
-                    >
-                        <Text style={styles.title}>Challenges completed</Text>
-                        <Text style={styles.stat}>{challengeClaimed ? 1 : 0}</Text>
-                </View>
-
-                <View 
-                style={[
-                    styles.shortcut, 
-                    { backgroundColor: colors.pink},
-                    ]}
-                >
-                         <Text style={styles.title}>Medals earned</Text>
-                         <Text style={styles.stat}>{medals}</Text>
-                </View>
-            </View>
-            <View style={styles.card}><Text 
-            style={styles.title}>Today's activity</Text>
-
-            <Text style={styles.body}>{workouts.filter(w => w.date === today).length} workouts logged</Text>
-
-            <Text style={styles.caption}> No workout plan set yet.</Text>
-            {button('Log a workout', () => setScreen('Log'))}</View>
-            
-         <View style={styles.card}>
-          <Text style={styles.title}> Weekly goal</Text>
-           <Text style={styles.stat}>{xp} XP</Text>
-           <ProgressBar value={levelXp} total={nextLevelXp} />
-           <Text style={styles.caption}>{nextLevelXp - levelXp} XP to level {level + 1}</Text></View>
-        <View style={[styles.card, styles.half]}><Text style={styles.title}>Current streak</Text>
-        <Text style={styles.stat}>{streak} days</Text></View>
-        <View style={styles.card}><Text style={styles.title}>Daily starter challenge</Text>
-          <Text style={styles.body}>Log a workout of at least 10 minutes today.</Text>
-          {challengeClaimed ? <Text>Completed · medal earned</Text> : !challengeJoined
-            ? button('Join challenge', () => setChallengeJoined(true))
-            : challengeReady ? button('Claim 40 XP and medal', () => setChallengeClaimed(true))
-            : <Text style={styles.caption}>Joined · waiting for a qualifying workout</Text>}
-        </View>
-      </>}
+    }
+    onChallenges={() =>
+      Alert.alert(
+        'Challenges',
+        'The Challenges screen will be connected here.'
+      )
+    }
+    onMedals={() => setScreen('Profile')}
+    onProgress={() => setScreen('Progress')}
+    onOpenWorkout={() => setScreen('Workouts')}
+  />
+)}
 
 
        {/* PROFILE BLOCK for receiving shared user data from App. */}
@@ -420,6 +372,14 @@ content: {
   selectedDay: { 
     backgroundColor: colors.orange 
 },
+
+homeContent: {
+  padding: 0,
+  paddingBottom: 24,
+  gap: 0,
+},
+
+
   dayLabel: { 
     fontSize: 11, 
     color: colors.text 
