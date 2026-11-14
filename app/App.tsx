@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { StatusBar } from 'expo-status-bar'; 
 import BottomNav from './src/components/BottomNav'; 
 import ProfileScreen from './src/screens/ProfileScreen';
+import ScreenActions from './src/components/ScreenActions';
 // The font for the whole app 
 import { useFonts, Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold} from '@expo-google-fonts/inter';
 
@@ -130,9 +131,28 @@ if (!fontsLoaded) {
               ]}
             >
         <StatusBar style="dark" />
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}
-          contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled">
-          <Text style={styles.brand}>Ascend</Text>
+
+        {/* Shared header stays above the scrolling screen content. */}
+        <View style={styles.screenActions}>
+        <Text style={styles.brand}>Ascend</Text>
+
+          <ScreenActions
+            onNavigate={destination => setScreen(destination)}
+            onChallenges={() =>
+           Alert.alert(
+            'Challenges',
+            'The Challenges screen will be connected here.'
+          )
+        }
+      />
+   </View>
+
+   <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.content}
+      contentInsetAdjustmentBehavior="automatic"
+      keyboardShouldPersistTaps="handled"
+    >
           {screen === 'Home' && <>
 
           <View style={styles.greeting}>
@@ -314,12 +334,12 @@ if (!fontsLoaded) {
 )}
 
 
-        </ScrollView>
-         <BottomNav
-            selected={screen}
-            onSelect={setScreen}
-          />
-    </View>
+</ScrollView>
+    <BottomNav
+        selected={screen}
+        onSelect={setScreen}
+    />
+</View>
  );
 }
 
@@ -508,5 +528,14 @@ content: {
     fontWeight: '700' 
 },
 
-          
+screenActions: {
+  position: 'relative', 
+  paddingHorizontal: 16, 
+  paddingTop: 12, 
+  paddingBottom: 8, 
+  gap: 12, 
+  backgroundColor: '#F1F1F1', 
+  zIndex: 20, 
+  flexShrink: 0, 
+},         
 });
