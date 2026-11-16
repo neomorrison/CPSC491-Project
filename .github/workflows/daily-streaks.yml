@@ -1,0 +1,36 @@
+# Calls the daily-streaks function once an hour.
+#
+# Why hourly and not daily: "today" is different for users in different time zones.
+# The function skips anyone it already checked today, so the extra calls do nothing.
+#
+# Setup (repo Settings > Secrets and variables > Actions):
+#   SUPABASE_URL   the project URL, like https://abcd.supabase.co
+#   CRON_SECRET    the same value as the CRON_SECRET secret set on the Supabase project
+# Until both are set, the job skips itself instead of failing.
+
+name: Daily streak check
+
+on:
+  schedule:
+    - cron: "5 * * * *" # 5 minutes past every hour (UTC)
+  workflow_dispatch: # lets us run it by hand from the Actions tab
+
+jobs:
+  check-streaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call daily-streaks
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "SUPABASE_URL or CRON_SECRET is not set yet. Skipping."
+            exit 0
+          fi
+          # --fail-with-body makes the step fail on a 4xx or 5xx but still prints the answer
+          curl --silent --show-error --fail-with-body --max-time 120 \
+            -X POST "$SUPABASE_URL/functions/v1/daily-streaks" \
+            -H "x-cron-secret: $CRON_SECRET"
+          echo
