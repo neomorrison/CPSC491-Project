@@ -139,6 +139,25 @@ check("accept the plan as the user", r.status === 204, r);
 r = await call("/functions/v1/save-plan", { token: token, body: { ...plan, planId: planId } });
 check("save-plan: 404 once the plan was accepted", r.status === 404, r);
 
+// the extra limits: experience cap, then the weekly limit on new plans
+const fiveDays = ["mon", "tue", "wed", "thu", "fri"].map((day) => ({ day: day, workoutType: "cardio", minutes: 30 }));
+r = await call("/functions/v1/save-plan", { token: token, body: { weekStart: weekStart, items: fiveDays } });
+check(
+  "save-plan: 422 for too many sessions for a beginner",
+  r.status === 422 && /too many sessions/.test((r.body.details || []).join()),
+  r,
+);
+
+let extraSaved = 0;
+for (let i = 0; i < 4; i++) {
+  r = await call("/functions/v1/save-plan", { token: token, body: plan });
+  if (r.status === 200) extraSaved++;
+}
+check("save-plan: 4 more new plans are allowed (5 this week)", extraSaved === 4, r);
+
+r = await call("/functions/v1/save-plan", { token: token, body: plan });
+check("save-plan: 429 for a 6th new plan in a week", r.status === 429, r);
+
 // 4. daily-streaks
 r = await call("/functions/v1/daily-streaks", { headers: { "x-cron-secret": "wrong" } });
 check("daily-streaks: 401 with the wrong secret", r.status === 401, r);

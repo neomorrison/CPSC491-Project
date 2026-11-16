@@ -16,11 +16,23 @@ const deps: SavePlanDeps = {
   async getProfile(authHeader, userId) {
     const { data, error } = await userClient(authHeader)
       .from("profiles")
-      .select("ai_can_create_plans, time_zone")
+      .select("ai_can_create_plans, time_zone, experience")
       .eq("id", userId)
       .maybeSingle();
     if (error || !data) return null;
     return data;
+  },
+
+  async countNewPlansSince(authHeader, userId, sinceIso) {
+    // read with the user's own token, so RLS only lets us count their plans
+    const { count, error } = await userClient(authHeader)
+      .from("workout_plans")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("created_by", "assistant")
+      .gte("created_at", sinceIso);
+    if (error) throw new Error(error.message);
+    return count ?? 0;
   },
 
   async savePlan(userId, planId, plan) {

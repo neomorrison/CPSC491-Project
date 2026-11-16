@@ -222,6 +222,13 @@ async function sendPlan(data: FitnessData, body: unknown): Promise<ToolResult> {
       );
     }
 
+    case 429:
+      return fail(
+        "You have suggested too many new plans for this user this week. " +
+          "Do not create another one. Use update_workout_plan to change a plan that is still a suggestion, " +
+          "or tell the user to try again in a few days.",
+      );
+
     default:
       return fail("The plan could not be saved (the server answered " + answer.status + "). Try again later.");
   }

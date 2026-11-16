@@ -7,14 +7,17 @@
 //   403 the user hasn't turned on "Suggest workout plans"
 //   404 that plan was already accepted or dismissed (make a new one instead)
 //   422 { error, details }                the plan failed the safety checks. details says why.
+//   429 the assistant already suggested too many new plans this week
 
 import { todayIn } from "../_shared/gamification/dates.ts";
 import { validatePlan, type PlanInput } from "../_shared/gamification/plans.ts";
 import { CORS_HEADERS, errorResponse, json, readJson } from "../_shared/http.ts";
+import { checkPlanForExperience, EXTRA_LIMITS, overWeeklyLimit, windowStart } from "./limits.ts";
 
 export interface PlanProfile {
   ai_can_create_plans: boolean;
   time_zone: string;
+  experience?: string | null; // beginner, some, experienced, or not set
 }
 
 export type SaveResult =
@@ -27,6 +30,8 @@ export interface SavePlanDeps {
   getUserId(authHeader: string): Promise<string | null>;
   // the user's own profile row, read with their token
   getProfile(authHeader: string, userId: string): Promise<PlanProfile | null>;
+  // how many new plans the assistant has suggested for this user since the given time
+  countNewPlansSince(authHeader: string, userId: string, sinceIso: string): Promise<number>;
   // calls save_assistant_plan. planId is null for a new plan.
   savePlan(userId: string, planId: string | null, plan: PlanInput): Promise<SaveResult>;
   now?: () => Date;
@@ -84,6 +89,28 @@ export async function handleSavePlan(req: Request, deps: SavePlanDeps): Promise<
   const check = validatePlan(body, todayIn(profile.time_zone, now));
   if (!check.ok) {
     return errorResponse(422, "plan failed the checks", check.errors);
+  }
+
+  // extra rules that depend on the user: how much is safe for their experience level
+  const tooMuch = checkPlanForExperience(check.plan, profile.experience);
+  if (tooMuch.length > 0) {
+    return errorResponse(422, "plan failed the checks", tooMuch);
+  }
+
+  // A limit on new suggestions, so an assistant can't flood the user with plans.
+  // Changing a plan it already suggested doesn't count.
+  if (planId === null) {
+    const recent = await deps.countNewPlansSince(authHeader, userId, windowStart(now));
+    if (overWeeklyLimit(recent)) {
+      return errorResponse(
+        429,
+        "Too many new plans. An assistant can suggest at most " +
+          EXTRA_LIMITS.maxNewPlansPerWeek +
+          " new plans in " +
+          EXTRA_LIMITS.windowDays +
+          " days. Update one of the suggested plans instead, or wait.",
+      );
+    }
   }
 
   const saved = await deps.savePlan(userId, planId, check.plan);

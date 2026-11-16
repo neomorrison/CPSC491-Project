@@ -185,6 +185,19 @@ describe("create_workout_plan and update_workout_plan", () => {
     expect(result.text).toMatch(/login/);
   });
 
+  it("429: tells the assistant to stop creating plans and update instead", async () => {
+    const result = await createWorkoutPlan(fakeData({}, { status: 429, body: { error: "Too many new plans." } }), plan);
+    expect(result.isError).toBe(true);
+    expect(result.text).toMatch(/too many new plans/);
+    expect(result.text).toMatch(/update_workout_plan/);
+  });
+
+  it("422: passes back an experience cap reason too", async () => {
+    const answer = { status: 422, body: { error: "plan failed the checks", details: ["too many sessions for a beginner: 5 workout days, the most is 4"] } };
+    const result = await createWorkoutPlan(fakeData({}, answer), plan);
+    expect(result.text).toMatch(/too many sessions for a beginner/);
+  });
+
   it("anything else is a plain error", async () => {
     const result = await createWorkoutPlan(fakeData({}, { status: 500, body: null }), plan);
     expect(result.isError).toBe(true);

@@ -16,7 +16,7 @@ supabase/functions/
   _shared/http.ts         JSON and error responses used by every function
   _shared/supabase.ts     the two database clients (as the signed-in user, and server-only)
   log-workout/            saves a workout and everything it earns
-  save-plan/              saves a workout plan suggested by an AI assistant
+  save-plan/              saves a workout plan suggested by an AI assistant (limits.ts has the extra safety rules)
   daily-streaks/          rebuilds every user's streak once a day
 tests/                    unit tests (vitest)
 scripts/smoke-test.mjs    calls the three functions against a running local Supabase
@@ -110,8 +110,19 @@ supabase.functions.invoke("save-plan", {
 | 403 | The user hasn't turned on "Suggest workout plans" (`profiles.ai_can_create_plans`) |
 | 404 | That plan was already accepted or dismissed. Create a new one instead |
 | 422 | The plan failed the safety checks. `details` says why, so the assistant can fix it and try again |
+| 429 | The assistant already suggested 5 new plans in the last 7 days. Updating a suggested plan still works |
 
-The safety checks are in `_shared/gamification/plans.ts`.
+The safety checks are in two places:
+
+- `_shared/gamification/plans.ts` has the basic checks: 10 to 120 minutes per session, at
+  least one rest day, a valid week, and no medical wording.
+- `save-plan/limits.ts` has the checks that depend on the user:
+
+| Experience level | Most workout days a week | Most minutes a week |
+|---|---|---|
+| beginner (also used when the user hasn't set a level) | 4 | 180 |
+| some | 5 | 300 |
+| experienced | 6 | 480 |
 
 ### daily-streaks
 

@@ -32,6 +32,7 @@ the safety checks. The server turns its answers into messages the assistant can 
 | 403 | The user hasn't turned on "Suggest workout plans". Ask them to enable it |
 | 422 | Why the plan failed the safety checks, so it can fix the plan and try again |
 | 404 | That plan was already accepted or dismissed. Create a new one instead |
+| 429 | It suggested too many new plans this week. Update a suggested plan instead, or wait |
 | 401 | The sign-in is wrong or expired |
 
 ## Rules

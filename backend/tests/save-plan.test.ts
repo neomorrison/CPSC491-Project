@@ -12,12 +12,18 @@ const goodPlan = {
   ],
 };
 
+const fiveDayPlan = {
+  weekStart: "2026-11-09",
+  items: ["mon", "tue", "wed", "thu", "fri"].map((day) => ({ day, workoutType: "cardio", minutes: 30 })),
+};
+
 // fake database calls. each test changes only the part it cares about.
 function makeDeps(changes: Partial<SavePlanDeps> = {}) {
   const calls: { userId: string; planId: string | null }[] = [];
   const deps: SavePlanDeps = {
     getUserId: async () => "user-1",
-    getProfile: async () => ({ ai_can_create_plans: true, time_zone: "America/Los_Angeles" }),
+    getProfile: async () => ({ ai_can_create_plans: true, time_zone: "America/Los_Angeles", experience: "some" }),
+    countNewPlansSince: async () => 0,
     savePlan: async (userId, planId) => {
       calls.push({ userId, planId });
       return { ok: true, planId: planId ?? PLAN_ID };
@@ -128,5 +134,56 @@ describe("save-plan", () => {
     const res = await handleSavePlan(new Request("http://localhost/save-plan", { method: "OPTIONS" }), deps);
     expect(res.status).toBe(200);
     expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  });
+
+  it("answers 422 when a plan has too many sessions for a beginner", async () => {
+    const { deps, calls } = makeDeps({
+      getProfile: async () => ({ ai_can_create_plans: true, time_zone: "America/Los_Angeles", experience: "beginner" }),
+    });
+    const res = await handleSavePlan(post(fiveDayPlan), deps);
+    expect(res.status).toBe(422);
+    expect((await res.json()).details.join()).toMatch(/too many sessions for a beginner/);
+    expect(calls.length).toBe(0);
+  });
+
+  it("allows the same plan for someone with some experience", async () => {
+    const { deps } = makeDeps();
+    const res = await handleSavePlan(post(fiveDayPlan), deps);
+    expect(res.status).toBe(200);
+  });
+
+  it("treats a user with no experience level as a beginner", async () => {
+    const { deps } = makeDeps({
+      getProfile: async () => ({ ai_can_create_plans: true, time_zone: "America/Los_Angeles", experience: null }),
+    });
+    const res = await handleSavePlan(post(fiveDayPlan), deps);
+    expect(res.status).toBe(422);
+  });
+
+  it("answers 429 after too many new plans in a week", async () => {
+    const { deps, calls } = makeDeps({ countNewPlansSince: async () => 5 });
+    const res = await handleSavePlan(post(goodPlan), deps);
+    expect(res.status).toBe(429);
+    expect((await res.json()).error).toMatch(/at most 5 new plans/);
+    expect(calls.length).toBe(0);
+  });
+
+  it("still allows updating a suggested plan when over the limit", async () => {
+    const { deps, calls } = makeDeps({ countNewPlansSince: async () => 99 });
+    const res = await handleSavePlan(post({ ...goodPlan, planId: PLAN_ID }), deps);
+    expect(res.status).toBe(200);
+    expect(calls.length).toBe(1);
+  });
+
+  it("counts new plans from 7 days before now", async () => {
+    let since = "";
+    const { deps } = makeDeps({
+      countNewPlansSince: async (_auth, _user, sinceIso) => {
+        since = sinceIso;
+        return 0;
+      },
+    });
+    await handleSavePlan(post(goodPlan), deps);
+    expect(since).toBe("2026-10-28T20:00:00.000Z");
   });
 });
