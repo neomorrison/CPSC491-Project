@@ -5,6 +5,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import ScreenActions from './src/components/ScreenActions';
 import HomeSummary from './src/components/HomeSummary';
+import LogWorkoutScreen from './src/screens/LogWorkoutScreen';
 // The font for the whole app 
 import { useFonts, Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold} from '@expo-google-fonts/inter';
 
@@ -20,7 +21,25 @@ const colors = {
     teal: '#087F80', orange: '#FFAB73', pink: '#FFADDD', mint: '#B5EDDD',
 }; 
 
-type Workout = { id: number; name: string; minutes: number; date: string }; 
+
+type Exercise = {
+  id: number;
+  name: string;
+  sets: number;
+  reps: number;
+  weight: number;
+};
+
+type Workout = {
+  id: number;
+  name: string;
+  minutes: number;
+  date: string;
+  workoutType?: 'Strength' | 'Cardio' | 'Mobility';
+  intensity?: 'Light' | 'Moderate' | 'Hard';
+  exercises?: Exercise[];
+  notes?: string;
+};
 const dateKey = (date: Date) => `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
 function ProgressBar({ value, total }: { value: number; total:number }) {
     const percent = 
@@ -97,15 +116,93 @@ export default function App() {
       workouts.some(w => w.date === today && w.minutes >= 10);
 
     const medals = challengeClaimed ? 1 : 0; 
-    function saveWorkout() {
-        const minutes = Number(duration); 
-        if (!workoutName.trim() || !Number.isFinite(minutes) || minutes <= 0 || !Number.isInteger(minutes)) {
-            Alert.alert('Check workout', 'Enter a workout name and a positive whole number of minutes.'); return ;
-        }
-        setWorkouts(previous => [...previous, { id: Date.now(), name: workoutName.trim(), minutes, date: today }]);
-        setWorkoutName(''); setDuration(''); setScreen('Home');
-    }
+    
+function saveWorkout(details: {
+  workoutType: 'Strength' | 'Cardio' | 'Mobility';
+  intensity: 'Light' | 'Moderate' | 'Hard';
+  date: string;
+  exercises: {
+    id: number;
+    name: string;
+    sets: number;
+    reps: number;
+    weight: number;
+  }[];
+}) {
+  const minutes = Number(duration);
 
+  // Validate workout name and duration
+  if (
+    !workoutName.trim() ||
+    !Number.isInteger(minutes) ||
+    minutes <= 0
+  ) {
+    Alert.alert(
+      'Check workout',
+      'Enter a workout name and a positive whole number of minutes.'
+    );
+    return;
+  }
+
+  // Validate the workout date
+  const dateMatch =
+    /^(\d{4})-(\d{2})-(\d{2})$/.exec(details.date);
+
+  if (!dateMatch) {
+    Alert.alert('Invalid date', 'Use YYYY-MM-DD format.');
+    return;
+  }
+
+  const [, year, month, day] = dateMatch.map(Number);
+  const parsedDate = new Date(year, month - 1, day);
+
+  if (
+    parsedDate.getFullYear() !== year ||
+    parsedDate.getMonth() !== month - 1 ||
+    parsedDate.getDate() !== day
+  ) {
+    Alert.alert('Invalid date', 'Enter a real calendar date.');
+    return;
+  }
+
+  // Validate exercise details
+  const invalidExercise = details.exercises.some(
+    exercise =>
+      !exercise.name.trim() ||
+      !Number.isInteger(exercise.sets) ||
+      exercise.sets <= 0 ||
+      !Number.isInteger(exercise.reps) ||
+      exercise.reps <= 0 ||
+      !Number.isFinite(exercise.weight) ||
+      exercise.weight < 0
+  );
+
+  if (invalidExercise) {
+    Alert.alert(
+      'Check exercises',
+      'Enter valid sets, reps, and weight for each exercise.'
+    );
+    return;
+  }
+
+  // Save the complete workout
+  setWorkouts(previous => [
+    ...previous,
+    {
+      id: Date.now(),
+      name: workoutName.trim(),
+      minutes,
+      date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+      workoutType: details.workoutType,
+      intensity: details.intensity,
+      exercises: details.exercises,
+    },
+  ]);
+
+  setWorkoutName('');
+  setDuration('');
+  setScreen('Home');
+}
     const button = (label: string, action: () => void) => <Pressable accessibilityRole="button"
       onPress={action} style ={styles.primaryButton}><Text style={styles.buttonText}>{label}</Text></Pressable>;
     if (fontError) {
@@ -237,38 +334,23 @@ if (!fontsLoaded) {
       )}
       
 {/* LOG WORKOUT SCREEN */}
+
 {screen === 'Log' && (
-  <View style={styles.card}>
-    <Text style={styles.workoutTitle}>Log Workout</Text>
-
-    <Text style={styles.body}>Workout name</Text>
-    <TextInput
-      accessibilityLabel="Workout name"
-      placeholder="e.g. Running, Yoga, Weightlifting"
-      value={workoutName}
-      onChangeText={setWorkoutName}
-      style={styles.input}
-    />
-
-    <Text style={styles.body}>Duration (minutes)</Text>
-    <TextInput
-      accessibilityLabel="Workout duration"
-      placeholder="e.g. 30"
-      keyboardType="number-pad"
-      value={duration}
-      onChangeText={setDuration}
-      style={styles.input}
-    />
-
-    {button('Save Workout', saveWorkout)}
-    {button('Back to Home', () => setScreen('Home'))}
-  </View>
+  <LogWorkoutScreen
+    workoutName={workoutName}
+    duration={duration}
+    onWorkoutNameChange={setWorkoutName}
+    onDurationChange={setDuration}
+    onSave={saveWorkout}
+    onBack={() => setScreen('Home')}
+  />
 )}
 
 {/* WORKOUT HISTORY SCREEN */}
 {screen === 'Workouts' && (
   <View style={{ gap: 16 }}>
     <Text style={styles.workoutTitle}>My Workouts</Text>
+
     <Text style={styles.caption}>
       Your recent workout activity
     </Text>
@@ -278,9 +360,11 @@ if (!fontsLoaded) {
         <Text style={styles.body}>
           You haven't logged any workouts yet.
         </Text>
+
         <Text style={styles.caption}>
           Start your fitness journey by logging your first workout!
         </Text>
+
         {button('Log Your First Workout', () => setScreen('Log'))}
       </View>
     ) : (
@@ -295,6 +379,48 @@ if (!fontsLoaded) {
           <Text style={styles.caption}>
             Date: {workout.date}
           </Text>
+
+          {workout.workoutType && (
+            <Text style={styles.body}>
+              Type: {workout.workoutType}
+            </Text>
+          )}
+
+          {workout.intensity && (
+            <Text style={styles.body}>
+              Intensity: {workout.intensity}
+            </Text>
+          )}
+
+          {workout.exercises && workout.exercises.length > 0 && (
+            <View style={{ gap: 8, marginTop: 8 }}>
+              <Text style={styles.title}>Exercises</Text>
+
+              {workout.exercises.map((exercise) => (
+                <View
+                  key={exercise.id}
+                  style={{
+                    backgroundColor: '#B7EFDE',
+                    padding: 12,
+                    borderRadius: 12,
+                    gap: 4,
+                  }}
+                >
+                  <Text style={styles.title}>
+                    {exercise.name}
+                  </Text>
+
+                  <Text style={styles.body}>
+                    {exercise.sets} sets × {exercise.reps} reps
+                  </Text>
+
+                  <Text style={styles.caption}>
+                    Weight: {exercise.weight} lb
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       ))
     )}
@@ -304,7 +430,6 @@ if (!fontsLoaded) {
   </View>
 )}
 
-
 </ScrollView>
     <BottomNav
         selected={screen}
@@ -313,7 +438,6 @@ if (!fontsLoaded) {
 </View>
  );
 }
-
 
 
 const styles = StyleSheet.create({
@@ -340,7 +464,7 @@ scroll: {
 content: {
   padding: 16,
   gap: 16,
-  paddingBottom: 24,
+  paddingBottom: 100,
 },
   header: { 
     flexDirection: 'row', 
