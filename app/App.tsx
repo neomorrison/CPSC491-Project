@@ -5,6 +5,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import ScreenActions from './src/components/ScreenActions';
 import HomeSummary from './src/components/HomeSummary';
+import ProgressScreen from './src/screens/ProgressScreen';
 import LogWorkoutScreen from './src/screens/LogWorkoutScreen';
 // The font for the whole app 
 import { useFonts, Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold} from '@expo-google-fonts/inter';
@@ -334,7 +335,11 @@ if (!fontsLoaded) {
           }}
         />
       )}
-      
+   {/* PROGRESS SCREEN */}
+{screen === 'Progress' && (
+  <ProgressScreen />
+)}   
+
 {/* LOG WORKOUT SCREEN */}
 
 {screen === 'Log' && (
@@ -377,9 +382,12 @@ if (!fontsLoaded) {
           <Text style={styles.body}>
             Duration: {workout.minutes} minutes
           </Text>
-
+ 
           <Text style={styles.caption}>
-            Date: {workout.date}
+            Date: {(() => {
+              const [year, month, day] = workout.date.split('-');
+              return `${month}/${day}/${year}`;
+            })()}
           </Text>
 
           {workout.workoutType && (
@@ -433,7 +441,7 @@ if (!fontsLoaded) {
               </Text>
             </View>
           )}
-          
+
         </View>
       ))
     )}

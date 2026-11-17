@@ -46,9 +46,16 @@ const [intensity, setIntensity] = useState<
   'Light' | 'Moderate' | 'Hard'
 >('Moderate');
 
-const [workoutDate, setWorkoutDate] = useState(
-  new Date().toISOString().slice(0, 10)
-);
+
+const [workoutDate, setWorkoutDate] = useState(() => {
+  const today = new Date();
+
+  return [
+    String(today.getMonth() + 1).padStart(2, '0'),
+    String(today.getDate()).padStart(2, '0'),
+    today.getFullYear(),
+  ].join('/');
+});
 const [notes, setNotes] = useState('');
 
 type ExerciseEntry = {
@@ -59,9 +66,7 @@ type ExerciseEntry = {
   weight: string;
 };
 
-const [exercises, setExercises] = useState<ExerciseEntry[]>([
-  { id: 1, name: '', sets: '', reps: '', weight: '' },
-]);
+const [exercises, setExercises] = useState<ExerciseEntry[]>([]);
 
 const addExercise = () => {
   setExercises(previous => [
@@ -105,10 +110,16 @@ const handleSave = () => {
       weight: Number(exercise.weight),
     }));
 
+    const dateParts = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(workoutDate);
+
+    const formattedDate = dateParts
+      ? `${dateParts[3]}-${dateParts[1]}-${dateParts[2]}`
+      : workoutDate;
+    
     onSave({
       workoutType,
       intensity,
-      date: workoutDate,
+      date: formattedDate,
       exercises: formattedExercises,
       notes: notes.trim(),
     });
@@ -147,7 +158,7 @@ const handleSave = () => {
 
       <TextInput
         accessibilityLabel="Workout date"
-        placeholder="YYYY-MM-DD"
+        placeholder="MM/DD/YYYY"
         value={workoutDate}
         onChangeText={setWorkoutDate}
         style={styles.input}
