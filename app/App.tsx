@@ -336,9 +336,15 @@ if (!fontsLoaded) {
         />
       )}
    {/* PROGRESS SCREEN */}
-{screen === 'Progress' && (
-  <ProgressScreen />
-)}   
+
+   {screen === 'Progress' && (
+  <ProgressScreen
+    totalXp={xp}
+    level={level}
+    xpIntoLevel={levelXp}
+    xpForNextLevel={nextLevelXp}
+  />
+)}
 
 {/* LOG WORKOUT SCREEN */}
 
