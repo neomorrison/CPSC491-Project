@@ -128,6 +128,7 @@ function saveWorkout(details: {
     reps: number;
     weight: number;
   }[];
+  notes: string;
 }) {
   const minutes = Number(duration);
 
@@ -196,6 +197,7 @@ function saveWorkout(details: {
       workoutType: details.workoutType,
       intensity: details.intensity,
       exercises: details.exercises,
+      notes: details.notes,
     },
   ]);
 
@@ -419,8 +421,19 @@ if (!fontsLoaded) {
                   </Text>
                 </View>
               ))}
+            </View> 
+          )}
+
+          {/* WORKOUT NOTES */}
+          {workout.notes && (
+            <View style={{ marginTop: 8, gap: 4 }}>
+              <Text style={styles.title}>Notes</Text>
+              <Text style={styles.body}>
+                {workout.notes}
+              </Text>
             </View>
           )}
+          
         </View>
       ))
     )}
@@ -438,7 +451,6 @@ if (!fontsLoaded) {
 </View>
  );
 }
-
 
 const styles = StyleSheet.create({
   input: { borderWidth: 1, borderColor: '#B5CCCC', borderRadius: 12, padding: 12, minHeight: 48, color: colors.text },

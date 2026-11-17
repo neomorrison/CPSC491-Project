@@ -23,7 +23,10 @@ type LogWorkoutScreenProps = {
       reps: number;
       weight: number;
     }[];
-  }) => void;  onBack: () => void;
+    notes: string;
+  }) => void;
+  
+ onBack: () => void;
 };
 
 export default function LogWorkoutScreen({
@@ -46,6 +49,7 @@ const [intensity, setIntensity] = useState<
 const [workoutDate, setWorkoutDate] = useState(
   new Date().toISOString().slice(0, 10)
 );
+const [notes, setNotes] = useState('');
 
 type ExerciseEntry = {
   id: number;
@@ -71,7 +75,11 @@ const addExercise = () => {
     },
   ]);
 };
-
+const removeExercise = (id: number) => {
+  setExercises(previous =>
+    previous.filter(exercise => exercise.id !== id)
+  );
+};
 const updateExercise = (
   id: number,
   field: 'name' | 'sets' | 'reps' | 'weight',
@@ -97,14 +105,14 @@ const handleSave = () => {
       weight: Number(exercise.weight),
     }));
 
-  onSave({
-    workoutType,
-    intensity,
-    date: workoutDate,
-    exercises: formattedExercises,
-  });
-};
-
+    onSave({
+      workoutType,
+      intensity,
+      date: workoutDate,
+      exercises: formattedExercises,
+      notes: notes.trim(),
+    });
+  };
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Log Workout</Text>
@@ -184,9 +192,21 @@ const handleSave = () => {
 </View>
 
 {exercises.map((exercise, index) => (
-  <View key={exercise.id} style={styles.exerciseCard}>
+
+<View key={exercise.id} style={styles.exerciseCard}>
+  <View style={styles.exerciseHeader}>
     <Text style={styles.label}>Exercise {index + 1}</Text>
 
+    {exercises.length > 1 && (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Remove exercise ${index + 1}`}
+        onPress={() => removeExercise(exercise.id)}
+      >
+        <Text style={styles.removeText}>Remove</Text>
+      </Pressable>
+    )}
+  </View>
     <TextInput
       accessibilityLabel={`Exercise ${index + 1} name`}
       placeholder="e.g. Goblet Squat"
@@ -222,6 +242,20 @@ const handleSave = () => {
     </View>
   </View>
 ))}
+
+<Text style={styles.label}>Notes (optional)</Text>
+
+<TextInput
+  accessibilityLabel="Workout notes"
+  placeholder="How did your workout go?"
+  value={notes}
+  onChangeText={setNotes}
+  multiline
+  numberOfLines={4}
+  textAlignVertical="top"
+  style={[styles.input, styles.notesInput]}
+/>
+
     <Pressable style={styles.button} onPress={handleSave}>        <Text style={styles.buttonText}>Save Workout</Text>
       </Pressable>
   
@@ -318,5 +352,14 @@ exerciseCard: {
   padding: 12,
   borderRadius: 14,
   backgroundColor: '#B7EFDE',
+},
+removeText: {
+  color: '#B42318',
+  fontSize: 12,
+  fontWeight: '600',
+},
+notesInput: {
+  minHeight: 100,
+  paddingTop: 12,
 },
 });
