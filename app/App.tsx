@@ -41,7 +41,9 @@ type Workout = {
   exercises?: Exercise[];
   notes?: string;
 };
-const dateKey = (date: Date) => `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+
+const dateKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 function ProgressBar({ value, total }: { value: number; total:number }) {
     const percent = 
     total > 0 
@@ -337,14 +339,24 @@ if (!fontsLoaded) {
       )}
    {/* PROGRESS SCREEN */}
 
-   {screen === 'Progress' && (
+  
+{screen === 'Progress' && (
   <ProgressScreen
     totalXp={xp}
     level={level}
     xpIntoLevel={levelXp}
     xpForNextLevel={nextLevelXp}
+    totalWorkouts={workouts.length}
+    weeklyWorkouts={weeklyWorkouts.length}
+    totalMinutes={workouts.reduce(
+      (sum, workout) => sum + workout.minutes,
+      0
+    )}
+    streak={streak}
+    workoutDates={workouts.map(workout => workout.date)}
   />
 )}
+
 
 {/* LOG WORKOUT SCREEN */}
 
