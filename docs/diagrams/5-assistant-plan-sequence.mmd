@@ -1,0 +1,28 @@
+sequenceDiagram
+    autonumber
+    actor User
+    participant AI as User's AI assistant
+    participant MCP as MCP server
+    participant Fn as save-plan function
+    participant DB as Database
+    participant App as Mobile app
+    User->>AI: "Make me a plan for this week"
+    AI->>MCP: get_workouts, get_goals, get_progress
+    MCP->>DB: Read permitted data with the user's login
+    DB-->>MCP: Recent workouts, goals, schedule, streak
+    MCP-->>AI: Data summary
+    Note over AI: Writes the plan and<br/>explains the advice to the user
+    AI->>MCP: create_workout_plan(days, workouts, minutes)
+    MCP->>Fn: Plan request
+    Note over Fn: Safety checks: plan permission on,<br/>safe ranges, no medical claims
+    alt Plan passes checks
+        Fn->>DB: Save plan with status "suggested"<br/>and created_by "assistant"
+        Fn-->>MCP: Plan saved
+        MCP-->>AI: Success
+        App-->>User: "Your assistant suggested a plan"
+        User->>App: Accept, edit, or dismiss
+        App->>DB: Update plan status
+    else Plan fails checks
+        Fn-->>MCP: Rejected, with the reason
+        MCP-->>AI: Error the assistant can fix and retry
+    end

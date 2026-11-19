@@ -1,0 +1,23 @@
+{
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Arial, Helvetica, sans-serif",
+    "fontSize": "16px",
+    "primaryColor": "#fff0ea",
+    "primaryBorderColor": "#ff5b2e",
+    "primaryTextColor": "#17171c",
+    "lineColor": "#55534e",
+    "secondaryColor": "#efebff",
+    "tertiaryColor": "#f6f5f2",
+    "clusterBkg": "#f6f5f2",
+    "clusterBorder": "#b9b6ae",
+    "actorBkg": "#fff0ea",
+    "actorBorder": "#ff5b2e",
+    "noteBkgColor": "#fffbe6",
+    "noteBorderColor": "#e0c95a",
+    "edgeLabelBackground": "#ffffff"
+  },
+  "sequence": {
+    "mirrorActors": false
+  }
+}
