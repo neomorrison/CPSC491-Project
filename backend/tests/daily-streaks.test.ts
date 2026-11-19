@@ -107,4 +107,24 @@ describe("daily-streaks", () => {
     const res = await handleDailyStreaks(call(), deps);
     expect(await res.json()).toEqual({ checked: 0, skipped: 0, failed: 1 });
   });
+
+  it("expires finished challenges every run, even when everyone was skipped", async () => {
+    let calls = 0;
+    const { deps } = makeDeps([user({ lastChecked: "2026-11-05" })], {}, {
+      expireChallenges: async () => {
+        calls++;
+        return 3;
+      },
+    });
+    const res = await handleDailyStreaks(call(), deps);
+    expect(await res.json()).toEqual({ checked: 0, skipped: 1, failed: 0, expiredChallenges: 3 });
+    expect(calls).toBe(1);
+  });
+
+  it("still answers 200 if expiring challenges fails", async () => {
+    const { deps } = makeDeps([], {}, { expireChallenges: async () => Promise.reject(new Error("boom")) });
+    const res = await handleDailyStreaks(call(), deps);
+    expect(res.status).toBe(200);
+    expect((await res.json()).expiredChallenges).toBe(0);
+  });
 });

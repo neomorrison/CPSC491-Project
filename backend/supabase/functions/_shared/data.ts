@@ -2,7 +2,14 @@
 // Keeping all the queries here means the edge functions don't have to know table/column names.
 
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.4";
-import type { AchievementDef, ChallengeDef, Weekday, WorkoutRecord } from "./gamification/index.ts";
+import type {
+  AchievementDef,
+  ChallengeDef,
+  Enrollment,
+  GoalDef,
+  Weekday,
+  WorkoutRecord,
+} from "./gamification/index.ts";
 
 export interface ProfileRow {
   time_zone: string;
@@ -23,7 +30,7 @@ export async function loadProfile(db: SupabaseClient, userId: string): Promise<P
 export async function loadWorkouts(db: SupabaseClient, userId: string): Promise<WorkoutRecord[]> {
   const { data, error } = await db
     .from("workouts")
-    .select("workout_date, minutes, started_at, earned_xp, workout_exercises(name, sets, reps, seconds, weight_lb)")
+    .select("id, workout_date, minutes, started_at, earned_xp, workout_exercises(name, sets, reps, seconds, weight_lb)")
     .eq("user_id", userId)
     .order("workout_date");
   if (error || !data) throw new Error("could not load workouts: " + error?.message);
@@ -42,6 +49,7 @@ export async function loadWorkouts(db: SupabaseClient, userId: string): Promise<
       });
     }
     workouts.push({
+      id: row.id,
       date: row.workout_date,
       minutes: row.minutes,
       startedAt: row.started_at,
@@ -79,16 +87,17 @@ export async function loadAchievements(db: SupabaseClient, userId: string) {
 export async function loadChallenges(db: SupabaseClient, userId: string) {
   const all = await db
     .from("challenges")
-    .select("id, name, period, metric, exercise, target, xp_reward")
+    .select("id, name, period, metric, exercise, target, xp_reward, min_level")
     .eq("active", true);
   if (all.error || !all.data) throw new Error("could not load challenges: " + all.error?.message);
 
-  const done = await db
+  // only the challenges the user joined and hasn't finished yet
+  const joined = await db
     .from("user_challenges")
-    .select("challenge_id, period_start")
+    .select("challenge_id, period_start, start_date, end_date")
     .eq("user_id", userId)
-    .eq("completed", true);
-  if (done.error || !done.data) throw new Error("could not load user challenges: " + done.error?.message);
+    .eq("status", "active");
+  if (joined.error || !joined.data) throw new Error("could not load user challenges: " + joined.error?.message);
 
   const defs: ChallengeDef[] = [];
   for (const row of all.data) {
@@ -100,11 +109,60 @@ export async function loadChallenges(db: SupabaseClient, userId: string) {
       exercise: row.exercise,
       target: row.target,
       xpReward: row.xp_reward,
+      minLevel: row.min_level,
     });
   }
-  const completed = new Set<string>();
-  for (const row of done.data) {
-    completed.add(row.challenge_id + "|" + row.period_start);
+  const enrollments: Enrollment[] = [];
+  for (const row of joined.data) {
+    enrollments.push({
+      challengeId: row.challenge_id,
+      periodStart: row.period_start,
+      startDate: row.start_date,
+      endDate: row.end_date,
+    });
   }
-  return { defs: defs, completed: completed };
+  return { defs: defs, enrollments: enrollments };
+}
+
+export async function loadGoals(db: SupabaseClient, userId: string) {
+  const active = await db
+    .from("goals")
+    .select("id, type, target, start_date")
+    .eq("user_id", userId)
+    .eq("status", "active");
+  if (active.error || !active.data) throw new Error("could not load goals: " + active.error?.message);
+
+  const paid = await db.from("goal_completions").select("goal_type, week_start").eq("user_id", userId);
+  if (paid.error || !paid.data) throw new Error("could not load goal completions: " + paid.error?.message);
+
+  const goals: GoalDef[] = [];
+  for (const row of active.data) {
+    goals.push({ id: row.id, type: row.type, target: row.target, startDate: row.start_date });
+  }
+  const done = new Set<string>();
+  for (const row of paid.data) {
+    done.add(row.goal_type + "|" + row.week_start);
+  }
+  return { goals: goals, done: done };
+}
+
+// one workout, only if it belongs to this user (returns null if not)
+export async function loadWorkout(db: SupabaseClient, userId: string, workoutId: string) {
+  const { data, error } = await db
+    .from("workouts")
+    .select("id, workout_date, minutes")
+    .eq("id", workoutId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error("could not load workout: " + error.message);
+  return data;
+}
+
+// how much XP a workout earned (base + streak bonus), after any earlier edits
+export async function loadWorkoutXp(db: SupabaseClient, workoutId: string): Promise<number> {
+  const { data, error } = await db.from("xp_events").select("amount").eq("workout_id", workoutId);
+  if (error || !data) throw new Error("could not load workout XP: " + error?.message);
+  let total = 0;
+  for (const row of data) total += row.amount;
+  return total;
 }

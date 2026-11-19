@@ -44,3 +44,10 @@ export async function readJson(req: Request): Promise<unknown | null> {
     return null;
   }
 }
+
+// the Authorization header if it looks like a login token, otherwise null
+export function bearerToken(req: Request): string | null {
+  const header = req.headers.get("Authorization") ?? "";
+  if (!header.toLowerCase().startsWith("bearer ")) return null;
+  return header;
+}

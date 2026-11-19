@@ -2,31 +2,20 @@
 // tests can run it with fake database calls.
 //
 // What it answers:
-//   200 { workoutId, earnedXp, xpGained, totalXp, levelBefore, levelAfter, leveledUp,
-//         unlocks, streak, challenges, newAchievements }
+//   200 { workoutId, earnedXp, xpGained, xpEvents, totalXp, level, levelBefore, levelAfter,
+//         leveledUp, unlocks, streak, challenges, goals, newAchievements }
 //   401 not signed in
 //   422 { error, details }   the workout failed the checks. details says why.
 
-import { todayIn, type Weekday } from "../_shared/gamification/dates.ts";
-import { processWorkout, type WorkoutContext, type WorkoutResult } from "../_shared/gamification/engine.ts";
-import type { AchievementDef } from "../_shared/gamification/achievements.ts";
-import type { ChallengeDef } from "../_shared/gamification/challenges.ts";
-import type { WorkoutInput, WorkoutRecord } from "../_shared/gamification/types.ts";
+import { todayIn } from "../_shared/gamification/dates.ts";
+import { processWorkout, type WorkoutResult } from "../_shared/gamification/engine.ts";
+import { levelProgress } from "../_shared/gamification/levels.ts";
+import type { WorkoutInput } from "../_shared/gamification/types.ts";
 import { validateWorkout } from "../_shared/gamification/xp.ts";
-import { CORS_HEADERS, errorResponse, json, readJson } from "../_shared/http.ts";
+import { bearerToken, errorResponse, json, preflight, readJson } from "../_shared/http.ts";
+import { cleanWorkout, contextFor, keepBestStreak, type UserData } from "../_shared/user-data.ts";
 
-// everything we need to know about the user before working out what the workout earns
-export interface UserData {
-  timeZone: string;
-  plannedDays: Weekday[];
-  history: WorkoutRecord[];
-  totalXp: number;
-  bestStreak: number; // the best streak saved so far
-  achievementDefs: AchievementDef[];
-  unlockedAchievements: string[];
-  challengeDefs: ChallengeDef[];
-  completedChallenges: string[]; // "challengeId|periodStart"
-}
+export type { UserData } from "../_shared/user-data.ts";
 
 export type SaveWorkoutResult = { ok: true; workoutId: string } | { ok: false; message: string };
 
@@ -36,22 +25,18 @@ export interface LogWorkoutDeps {
   getUserId(authHeader: string): Promise<string | null>;
   // reads the user's own data with their token, or null if they have no profile
   loadUserData(authHeader: string, userId: string): Promise<UserData | null>;
-  // calls record_workout, which saves the workout and everything it earned in one go
+  // calls save_workout_result, which saves the workout and everything it earned in one go
   saveWorkout(userId: string, workout: WorkoutInput, result: WorkoutResult, today: string): Promise<SaveWorkoutResult>;
   now?: () => Date;
 }
 
 export async function handleLogWorkout(req: Request, deps: LogWorkoutDeps): Promise<Response> {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: CORS_HEADERS });
-  }
-  if (req.method !== "POST") {
-    return errorResponse(405, "use POST");
-  }
+  const stop = preflight(req);
+  if (stop) return stop;
 
   // who is asking
-  const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader.toLowerCase().startsWith("bearer ")) {
+  const authHeader = bearerToken(req);
+  if (!authHeader) {
     return errorResponse(401, "not signed in");
   }
   const userId = await deps.getUserId(authHeader);
@@ -75,23 +60,8 @@ export async function handleLogWorkout(req: Request, deps: LogWorkoutDeps): Prom
   const workout = cleanWorkout(body as WorkoutInput);
 
   // work out what it earns
-  const ctx: WorkoutContext = {
-    profile: { timeZone: user.timeZone, plannedDays: user.plannedDays },
-    today: today,
-    history: user.history,
-    totalXp: user.totalXp,
-    achievementDefs: user.achievementDefs,
-    unlockedAchievements: new Set(user.unlockedAchievements),
-    challengeDefs: user.challengeDefs,
-    completedChallenges: new Set(user.completedChallenges),
-  };
-  const result = processWorkout(workout, ctx);
-
-  // The streak is rebuilt from the workout history, so deleting old workouts could make
-  // "best" smaller. The rule is that the best streak is never lost, so keep the bigger one.
-  if (user.bestStreak > result.streak.best) {
-    result.streak.best = user.bestStreak;
-  }
+  const result = processWorkout(workout, contextFor(user, today));
+  keepBestStreak(result, user);
 
   const saved = await deps.saveWorkout(userId, workout, result, today);
   if (!saved.ok) {
@@ -99,40 +69,21 @@ export async function handleLogWorkout(req: Request, deps: LogWorkoutDeps): Prom
     return errorResponse(500, "could not save the workout");
   }
 
+  // this is what the "Workout saved" and "Level up" screens show
   return json(200, {
     workoutId: saved.workoutId,
     earnedXp: result.earnedXp,
     xpGained: result.xpGained,
+    xpEvents: result.xpEvents,
     totalXp: result.totalXp,
+    level: levelProgress(result.totalXp),
     levelBefore: result.levelBefore,
     levelAfter: result.levelAfter,
     leveledUp: result.leveledUp,
     unlocks: result.unlocks,
     streak: result.streak,
     challenges: result.challenges,
+    goals: result.goals,
     newAchievements: result.newAchievements,
   });
-}
-
-// only keep the fields we know about, and tidy up the text
-function cleanWorkout(input: WorkoutInput): WorkoutInput {
-  const exercises = [];
-  for (const e of input.exercises ?? []) {
-    exercises.push({
-      name: e.name.trim(),
-      sets: e.sets ?? null,
-      reps: e.reps ?? null,
-      seconds: e.seconds ?? null,
-      weightLb: e.weightLb ?? null,
-    });
-  }
-  return {
-    type: input.type,
-    date: input.date,
-    startedAt: input.startedAt ?? null,
-    minutes: input.minutes,
-    effort: input.effort ?? null,
-    notes: input.notes ?? null,
-    exercises: exercises,
-  };
 }

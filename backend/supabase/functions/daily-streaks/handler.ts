@@ -4,10 +4,11 @@
 // A scheduled job calls this about once an hour. For each user whose streak hasn't
 // been checked yet today (their today), it rebuilds the streak from their workouts.
 // That is what uses a freeze or resets the streak when someone misses a planned day,
-// even if they never open the app.
+// even if they never open the app. Then it marks joined challenges whose time ran out
+// as expired.
 //
 // What it answers:
-//   200 { checked, skipped, failed }
+//   200 { checked, skipped, failed, expiredChallenges }
 //   401 the x-cron-secret header is missing or wrong
 
 import { todayIn, type Weekday } from "../_shared/gamification/dates.ts";
@@ -29,6 +30,8 @@ export interface DailyStreaksDeps {
   // the date of every workout long enough to count for the streak
   getWorkoutDates(userId: string): Promise<string[]>;
   saveStreak(userId: string, streak: StreakResult, checkedOn: string): Promise<boolean>;
+  // calls expire_challenges and returns how many it marked expired
+  expireChallenges?: () => Promise<number>;
   now?: () => Date;
 }
 
@@ -78,5 +81,17 @@ export async function handleDailyStreaks(req: Request, deps: DailyStreaksDeps): 
     }
   }
 
-  return json(200, { checked: checked, skipped: skipped, failed: failed });
+  const answer: Record<string, number> = { checked: checked, skipped: skipped, failed: failed };
+
+  // runs every time, even for users skipped above, since a challenge can end any hour
+  if (deps.expireChallenges) {
+    try {
+      answer.expiredChallenges = await deps.expireChallenges();
+    } catch (err) {
+      console.error("daily-streaks could not expire challenges: " + String(err));
+      answer.expiredChallenges = 0;
+    }
+  }
+
+  return json(200, answer);
 }

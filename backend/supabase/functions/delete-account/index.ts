@@ -3,20 +3,20 @@
 // user, so their workouts, XP, plans, settings, etc. all get deleted too.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { errorResponse, json, preflight } from "../_shared/http.ts";
-import { adminClient, userClient } from "../_shared/supabase.ts";
+import { bearerToken, errorResponse, json, preflight } from "../_shared/http.ts";
+import { adminClient, userIdFromToken } from "../_shared/supabase.ts";
 
 Deno.serve(async (req) => {
   const stop = preflight(req);
   if (stop) return stop;
 
-  const authHeader = req.headers.get("Authorization") ?? "";
-  const { data, error: authError } = await userClient(authHeader).auth.getUser();
-  if (authError || !data.user) {
+  const authHeader = bearerToken(req);
+  const userId = authHeader ? await userIdFromToken(authHeader) : null;
+  if (!userId) {
     return errorResponse(401, "not signed in");
   }
 
-  const { error } = await adminClient().auth.admin.deleteUser(data.user.id);
+  const { error } = await adminClient().auth.admin.deleteUser(userId);
   if (error) {
     console.error("delete-account failed", error);
     return errorResponse(500, "couldn't delete the account, try again");

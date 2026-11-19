@@ -9,10 +9,14 @@ function userData(changes: Partial<UserData> = {}): UserData {
     history: [],
     totalXp: 0,
     bestStreak: 0,
+    currentStreak: 0,
     achievementDefs: [{ id: "first_workout", name: "First Step", rule: { kind: "total_workouts", count: 1 }, xpReward: 25 }],
     unlockedAchievements: [],
     challengeDefs: [{ id: "move_20", name: "Move for 20 minutes", period: "daily", metric: "minutes", target: 20, xpReward: 40 }],
-    completedChallenges: [],
+    // the user joined move_20 today (only joined challenges count)
+    enrollments: [{ challengeId: "move_20", periodStart: "2026-11-02", startDate: "2026-11-02", endDate: "2026-11-02" }],
+    goals: [],
+    goalsDone: [],
     ...changes,
   };
 }
@@ -112,7 +116,8 @@ describe("log-workout", () => {
   it("gives no base XP for a third workout in one day", async () => {
     const earlier = { date: "2026-11-02", minutes: 30, earnedXp: true };
     const { deps } = makeDeps({
-      loadUserData: async () => userData({ history: [earlier, earlier], unlockedAchievements: ["first_workout"], completedChallenges: ["move_20|2026-11-02"] }),
+      // move_20 was already finished earlier today, so it's no longer an active enrollment
+      loadUserData: async () => userData({ history: [earlier, earlier], unlockedAchievements: ["first_workout"], enrollments: [] }),
     });
     const res = await handleLogWorkout(post(workout), deps);
     const body = await res.json();
@@ -149,6 +154,22 @@ describe("log-workout", () => {
       notes: null,
       exercises: [{ name: "Squats", sets: 3, reps: 10, seconds: null, weightLb: null }],
     });
+  });
+
+  it("pays weekly goal XP and returns goal progress", async () => {
+    const goal = { id: "g1", type: "workouts_per_week" as const, target: 1, startDate: "2026-11-02" };
+    const { deps } = makeDeps({ loadUserData: async () => userData({ goals: [goal] }) });
+    const body = await (await handleLogWorkout(post(workout), deps)).json();
+    expect(body.xpEvents).toContainEqual({ amount: 30, reason: "goal:workouts_per_week" });
+    expect(body.goals[0]).toMatchObject({ goalId: "g1", progress: 1, completed: true, justCompleted: true });
+    expect(body.level.level).toBe(2);
+  });
+
+  it("doesn't pay for a challenge the user didn't join", async () => {
+    const { deps } = makeDeps({ loadUserData: async () => userData({ enrollments: [] }) });
+    const body = await (await handleLogWorkout(post(workout), deps)).json();
+    // 50 workout + 5 streak bonus + 25 first achievement, no challenge XP
+    expect(body.xpGained).toBe(80);
   });
 
   it("answers 500 when the user's data can't be loaded", async () => {

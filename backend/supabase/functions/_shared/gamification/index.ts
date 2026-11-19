@@ -2,6 +2,7 @@ export * from "./achievements.ts";
 export * from "./challenges.ts";
 export * from "./dates.ts";
 export * from "./engine.ts";
+export * from "./goals.ts";
 export * from "./levels.ts";
 export * from "./plans.ts";
 export * from "./streaks.ts";
