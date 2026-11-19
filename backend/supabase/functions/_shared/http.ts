@@ -2,10 +2,10 @@
 // No Deno imports in here, so the tests can use it from Node too.
 
 // The app runs on phones and in the browser (Expo web), so we allow any origin.
-// Every request still needs a valid login token.
+// Every request still needs a valid login token (or the cron secret for daily-streaks).
 export const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -22,6 +22,18 @@ export function errorResponse(status: number, error: string, details?: string[])
     return json(status, { error: error, details: details });
   }
   return json(status, { error: error });
+}
+
+// browsers send an OPTIONS request first (CORS preflight). we also only allow POST.
+// returns a response if we should stop here, otherwise null
+export function preflight(req: Request): Response | null {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: CORS_HEADERS });
+  }
+  if (req.method !== "POST") {
+    return errorResponse(405, "use POST");
+  }
+  return null;
 }
 
 // reads the JSON body, or returns null if it isn't valid JSON
