@@ -1,167 +1,147 @@
 # Backend
 
-This is the Supabase side of the app: the database, logins, and the server functions. It also has the gamification code (XP, levels, streaks, achievements, challenges).
+Everything that runs on the server: the database tables, the game rules (XP, levels, streaks,
+achievements, challenges), and the functions the app and the MCP server call.
+
+We use Supabase, so there is no server of our own to run. The database is Postgres, and the
+functions are Supabase Edge Functions (TypeScript, run by Deno).
+
+## What's in here
 
 ```
-backend/
-  package.json               scripts for tests + typecheck
-  tests/                     unit tests for the gamification code (vitest)
-  supabase/
-    config.toml              Supabase CLI settings
-    seed.sql                 starter achievements and challenges
-    migrations/              tables, security rules, and server-only SQL functions
-    functions/
-      _shared/gamification/  all the game rules (plain TypeScript, no database code)
-      _shared/data.ts        loads data from the database for the game rules
-      _shared/http.ts        CORS, JSON responses, Supabase clients
-      log-workout/           saves a workout and gives out XP/streak/challenge/achievement rewards
-      save-plan/             saves a workout plan from the AI assistant as a suggestion
-      daily-streaks/         scheduled job that updates everyone's streak
-      delete-account/        deletes the user and all their data
+supabase/migrations/      the database tables, security rules, and server-only database functions
+supabase/seed.sql         starter achievements and challenges
+supabase/functions/
+  _shared/gamification/   the game rules. No database code, so it's easy to unit test.
+  _shared/http.ts         JSON and error responses used by every function
+  _shared/supabase.ts     the two database clients (as the signed-in user, and server-only)
+  log-workout/            saves a workout and everything it earns
+  save-plan/              saves a workout plan suggested by an AI assistant (limits.ts has the extra safety rules)
+  daily-streaks/          rebuilds every user's streak once a day
+tests/                    unit tests (vitest)
+scripts/smoke-test.mjs    calls the three functions against a running local Supabase
 ```
 
-Diagrams: [architecture](../docs/diagrams/1-architecture.png), [tables](../docs/diagrams/3-er-diagram.png), [logging a workout](../docs/diagrams/4-log-workout-sequence.png), [assistant makes a plan](../docs/diagrams/5-assistant-plan-sequence.png). The rules are explained in the "Gamification engine design" section of our proposal.
+Each function folder has two files. `handler.ts` has the logic and takes its database calls as
+a parameter, so the tests can pass in fake ones. `index.ts` passes in the real ones.
 
-## Running the tests
+## Setup
 
-You need Node 20+.
+You need Node 18 or newer. For the local database you also need Docker Desktop running.
 
-```bash
+```
 cd backend
 npm install
-npm test
-npm run typecheck
 ```
 
-The tests cover GT-1 to GT-5 from the proposal (grace day, daily XP cap, level up, freeze, short workouts) plus challenges, achievements and the plan checks.
+## Unit tests
 
-## Setting up the shared Supabase project (only once)
-
-1. Make a project on [supabase.com](https://supabase.com) and copy the project ref (the `xxxx` part of `xxxx.supabase.co`).
-2. From the `backend/` folder run:
-
-```bash
-npx supabase login
-npx supabase link --project-ref YOUR_PROJECT_REF
-npx supabase db push --include-seed
-npx supabase secrets set CRON_SECRET=pick-a-long-random-string
-npx supabase functions deploy
+```
+npm test            # runs everything once
+npm run test:watch  # reruns when a file changes
+npm run typecheck   # TypeScript check, prints nothing when it passes
 ```
 
-3. Turn on the streak check. In the Supabase dashboard enable the `pg_cron` and `pg_net` extensions, then run this in the SQL editor (put in your project ref and the same CRON_SECRET). It runs every hour since users are in different time zones. Running it extra times doesn't hurt anything.
+These don't need Docker or a database.
 
-```sql
-select cron.schedule('daily-streaks', '15 * * * *', $$
-  select net.http_post(
-    url := 'https://YOUR_PROJECT_REF.supabase.co/functions/v1/daily-streaks',
-    headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', 'YOUR_CRON_SECRET'),
-    body := '{}'::jsonb
-  );
-$$);
+## Running it locally
+
+```
+npm run db:start    # starts local Supabase in Docker. The first run downloads a lot.
+npm run db:reset    # recreates the tables from migrations/ and loads seed.sql
 ```
 
-The app only needs the project URL and the **anon** key (Project Settings > API). Don't ever put the service role key in the app.
+`db:start` prints the local API URL and the anon key. `npx supabase status` prints them again.
 
-## Running it locally (optional)
+Copy `.env.example` to `supabase/functions/.env` and change `CRON_SECRET` to any value.
+`daily-streaks` refuses to run while it is still `change-me`.
 
-Needs Docker Desktop running.
-
-```bash
-npx supabase start
-npx supabase db reset
-npx supabase functions serve --env-file supabase/functions/.env
+```
+npm run functions:serve   # leave this running in its own terminal
 ```
 
-`db reset` rebuilds your local database from the migrations and seed. Copy `.env.example` to `supabase/functions/.env` first.
+Then, in a second terminal:
 
-## Changing the database
-
-Don't change tables by hand in the dashboard. Make a new migration and push it:
-
-```bash
-npx supabase migration new describe_the_change
-npx supabase db push
+```
+node scripts/smoke-test.mjs <API_URL> <ANON_KEY> <CRON_SECRET>
 ```
 
-## API
+It signs up a throwaway user and checks every response listed below.
 
-All the functions take a POST with a JSON body and the user's login token (`Authorization: Bearer <access token>`). The Supabase client adds the token for you:
+## The functions
 
-```ts
-const { data, error } = await supabase.functions.invoke("log-workout", { body: { ... } });
-```
+All three answer errors as `{ "error": "...", "details": ["..."] }`. `details` is only there
+when there is a list of reasons.
 
 ### log-workout
 
-```json
-{
-  "type": "strength",
-  "date": "2026-11-02",
-  "minutes": 35,
-  "startedAt": "07:30",
-  "effort": "just_right",
-  "exercises": [{ "name": "Squats", "sets": 3, "reps": 10, "weightLb": 95 }]
-}
+Called by the app with the user's login token.
+
+```
+supabase.functions.invoke("log-workout", {
+  body: { type, date, minutes, startedAt?, effort?, notes?, exercises? }
+})
 ```
 
-`type` can be `strength`, `cardio`, `yoga`, `sports`, or `other`. `date` is the user's local date and can be up to 2 days ago. It returns everything the "Workout saved" and "Level up" screens need:
+| Status | Meaning |
+|---|---|
+| 200 | Saved. Returns `workoutId`, `earnedXp`, `xpGained`, `totalXp`, `levelBefore`, `levelAfter`, `leveledUp`, `unlocks`, `streak`, `challenges`, `newAchievements` |
+| 401 | Not signed in |
+| 422 | The workout failed the checks. `details` says why |
 
-```json
-{
-  "workoutId": "…",
-  "earnedXp": true,
-  "xpGained": 80,
-  "xpEvents": [{ "amount": 50, "reason": "workout" }, { "amount": 30, "reason": "streak_bonus" }],
-  "totalXp": 2820,
-  "level": { "level": 8, "rank": "Regular", "xpIntoLevel": 20, "xpForNextLevel": 800 },
-  "leveledUp": true,
-  "unlocks": ["theme:ember"],
-  "streak": { "current": 6, "best": 12, "freezesLeft": 1, "atRisk": false, "pendingMissedDay": null },
-  "challenges": [{ "challengeId": "squats_50", "periodStart": "2026-11-02", "progress": 30, "completed": false, "justCompleted": false }],
-  "newAchievements": []
-}
+The workout, its XP, the streak, challenge progress, and new achievements are saved in one
+database call (`record_workout`), so either all of it saves or none of it does.
+
+### save-plan
+
+Called by the MCP server with the user's login token. Send `planId` to change a plan the
+assistant suggested before.
+
+```
+supabase.functions.invoke("save-plan", {
+  body: { weekStart, note?, items: [{ day, workoutType, minutes, details? }], planId? }
+})
 ```
 
-Errors: `400` with a `details` list of what's wrong with the workout, `401` if not signed in.
+| Status | Meaning |
+|---|---|
+| 200 | Saved. Returns `{ planId, status: "suggested" }`. The user accepts or dismisses it in the app |
+| 401 | Not signed in |
+| 403 | The user hasn't turned on "Suggest workout plans" (`profiles.ai_can_create_plans`) |
+| 404 | That plan was already accepted or dismissed. Create a new one instead |
+| 422 | The plan failed the safety checks. `details` says why, so the assistant can fix it and try again |
+| 429 | The assistant already suggested 5 new plans in the last 7 days. Updating a suggested plan still works |
 
-### save-plan (the MCP server uses this one)
+The safety checks are in two places:
 
-```json
-{
-  "planId": null,
-  "weekStart": "2026-11-09",
-  "note": "You hit your goal 3 weeks in a row, so this week has 4 days.",
-  "items": [
-    { "day": "mon", "workoutType": "strength", "minutes": 35, "details": "Lower body" },
-    { "day": "wed", "workoutType": "sports", "minutes": 45, "details": "Pickup basketball" }
-  ]
-}
-```
+- `_shared/gamification/plans.ts` has the basic checks: 10 to 120 minutes per session, at
+  least one rest day, a valid week, and no medical wording.
+- `save-plan/limits.ts` has the checks that depend on the user:
 
-The plan gets saved as `suggested`. Send a `planId` to replace a plan the assistant already suggested. Errors: `403` if the user hasn't turned on "Suggest workout plans", `422` with `details` if the plan fails the checks (10 to 120 minutes per session, at least one rest day, no medical advice), `404` if the plan was already accepted or dismissed.
-
-### delete-account
-
-No body. Deletes the user and everything that belongs to them.
+| Experience level | Most workout days a week | Most minutes a week |
+|---|---|---|
+| beginner (also used when the user hasn't set a level) | 4 | 180 |
+| some | 5 | 300 |
+| experienced | 6 | 480 |
 
 ### daily-streaks
 
-Only called by the scheduled job above (with the `x-cron-secret` header), not by the app.
+Called by a scheduled job, not by a user. It needs the `x-cron-secret` header to match the
+`CRON_SECRET` setting. For each user whose streak hasn't been checked yet today (in their own
+time zone), it rebuilds the streak from their workouts. This is what uses a freeze or resets
+a streak when someone misses a planned day, even if they never open the app.
 
-## What the app reads directly
-
-For reading, the app just queries the tables with the Supabase client. RLS makes sure each user only gets their own rows.
-
-| To show | Read from |
+| Status | Meaning |
 |---|---|
-| Level and total XP | `user_progress` view |
-| Streak, freezes, "at risk" | `streaks` |
-| Workout history | `workouts` with `workout_exercises` |
-| Badges | `achievements` and `user_achievements` |
-| Today's and this week's challenge | `challenges` and `user_challenges` |
-| Home screen layout | `home_widgets` (the app can edit this) |
-| Plans | `workout_plans` with `plan_items` (the app can accept, dismiss, edit, or make its own) |
+| 200 | Returns `{ checked, skipped, failed }` |
+| 401 | The secret is missing or wrong |
 
-Settings like name, planned days, and the AI permissions are columns in `profiles`, and the app can update those. Setting `onboarded_at` when onboarding is done gives the 25 XP onboarding bonus. To delete a workout call `supabase.rpc("delete_workout", { p_workout_id })`, which also takes back the XP from it.
+It is safe to call more than once a day. Users already checked today are skipped.
 
-Users can't write XP, streaks, achievements, challenge progress or workouts directly. Those only change through the functions above, so nobody can fake rewards.
+## Security notes
+
+- The functions read data with the user's own token, so the database security rules (RLS) apply.
+- The service role key is only used for the three server-only database functions
+  (`record_workout`, `save_assistant_plan`, `set_streak`), and only after we know who the user is.
+- The user id always comes from the login token, never from the request body.
+- Never commit `supabase/functions/.env` or any real key.

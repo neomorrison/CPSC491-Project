@@ -1,80 +1,132 @@
-// POST /functions/v1/log-workout
-// Saves a workout and figures out what it earns (XP, streak, challenges, achievements, level).
-// The app only tells us what workout happened. All the rewards get calculated here on the
-// server so nobody can give themselves XP by editing the app.
-//
-// Body: { type, date, minutes, startedAt?, effort?, notes?, exercises?: [{ name, sets?, reps?, seconds?, weightLb? }] }
+// log-workout: saves a workout and gives out everything it earns (XP, streak,
+// challenges, achievements). The app calls it with the user's login token:
+//   supabase.functions.invoke("log-workout", { body: { type, date, minutes, ... } })
+// The checks and responses are in handler.ts. This file only connects it to the database.
 
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { loadAchievements, loadChallenges, loadProfile, loadTotalXp, loadWorkouts } from "../_shared/data.ts";
-import { levelProgress, processWorkout, todayIn, validateWorkout, type WorkoutInput } from "../_shared/gamification/index.ts";
-import { adminClient, json, preflight, readJson, requireUser } from "../_shared/http.ts";
+import { adminClient, userClient } from "../_shared/supabase.ts";
+import type { AchievementDef } from "../_shared/gamification/achievements.ts";
+import type { ChallengeDef } from "../_shared/gamification/challenges.ts";
+import type { WorkoutRecord } from "../_shared/gamification/types.ts";
+import { handleLogWorkout, type LogWorkoutDeps } from "./handler.ts";
 
-Deno.serve(async (req) => {
-  const stop = preflight(req);
-  if (stop) return stop;
+const deps: LogWorkoutDeps = {
+  async getUserId(authHeader) {
+    const { data, error } = await userClient(authHeader).auth.getUser();
+    if (error || !data.user) return null;
+    return data.user.id;
+  },
 
-  const user = await requireUser(req);
-  if (user instanceof Response) return user;
+  // Everything here is read with the user's own token, so the database
+  // security rules make sure we only get their rows.
+  async loadUserData(authHeader, userId) {
+    const db = userClient(authHeader);
 
-  try {
-    const db = adminClient();
-    const profile = await loadProfile(db, user.id);
-    const today = todayIn(profile.time_zone);
+    const [profile, workouts, progress, streak, achievements, unlocked, challenges, completed] = await Promise.all([
+      db.from("profiles").select("time_zone, planned_days").eq("id", userId).maybeSingle(),
+      // Supabase returns at most 1000 rows by default. That is about 3 years of
+      // daily workouts, which is plenty for now.
+      db.from("workouts")
+        .select("workout_date, minutes, started_at, earned_xp, workout_exercises (name, sets, reps, seconds, weight_lb)")
+        .eq("user_id", userId)
+        .order("workout_date", { ascending: false })
+        .limit(1000),
+      db.from("user_progress").select("total_xp").eq("user_id", userId).maybeSingle(),
+      db.from("streaks").select("best_streak").eq("user_id", userId).maybeSingle(),
+      db.from("achievements").select("id, name, rule, xp_reward"),
+      db.from("user_achievements").select("achievement_id").eq("user_id", userId),
+      db.from("challenges").select("id, name, period, metric, exercise, target, xp_reward").eq("active", true),
+      db.from("user_challenges").select("challenge_id, period_start").eq("user_id", userId).eq("completed", true),
+    ]);
 
-    // check the workout first
-    const body = await readJson(req);
-    const errors = validateWorkout(body, today);
-    if (errors.length > 0) {
-      return json(400, { error: "invalid workout", details: errors });
+    for (const r of [profile, workouts, progress, streak, achievements, unlocked, challenges, completed]) {
+      if (r.error) {
+        console.error("log-workout could not load data: " + r.error.message);
+        return null;
+      }
     }
-    const workout = body as WorkoutInput;
+    if (!profile.data) return null;
 
-    // load everything the engine needs
-    const history = await loadWorkouts(db, user.id);
-    const totalXp = await loadTotalXp(db, user.id);
-    const achievements = await loadAchievements(db, user.id);
-    const challenges = await loadChallenges(db, user.id);
+    // deno-lint-ignore no-explicit-any
+    const history: WorkoutRecord[] = (workouts.data ?? []).map((w: any) => ({
+      date: w.workout_date,
+      minutes: w.minutes,
+      startedAt: w.started_at ? String(w.started_at).slice(0, 5) : null,
+      earnedXp: w.earned_xp,
+      // deno-lint-ignore no-explicit-any
+      exercises: (w.workout_exercises ?? []).map((e: any) => ({
+        name: e.name,
+        sets: e.sets,
+        reps: e.reps,
+        seconds: e.seconds,
+        weightLb: e.weight_lb,
+      })),
+    }));
 
-    const result = processWorkout(workout, {
-      profile: { timeZone: profile.time_zone, plannedDays: profile.planned_days },
-      today: today,
+    // deno-lint-ignore no-explicit-any
+    const achievementDefs: AchievementDef[] = (achievements.data ?? []).map((a: any) => ({
+      id: a.id,
+      name: a.name,
+      rule: a.rule,
+      xpReward: a.xp_reward,
+    }));
+
+    // deno-lint-ignore no-explicit-any
+    const challengeDefs: ChallengeDef[] = (challenges.data ?? []).map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      period: c.period,
+      metric: c.metric,
+      exercise: c.exercise,
+      target: c.target,
+      xpReward: c.xp_reward,
+    }));
+
+    return {
+      timeZone: profile.data.time_zone,
+      plannedDays: profile.data.planned_days ?? [],
       history: history,
-      totalXp: totalXp,
-      achievementDefs: achievements.defs,
-      unlockedAchievements: achievements.unlocked,
-      challengeDefs: challenges.defs,
-      completedChallenges: challenges.completed,
-    });
+      totalXp: progress.data?.total_xp ?? 0,
+      bestStreak: streak.data?.best_streak ?? 0,
+      achievementDefs: achievementDefs,
+      // deno-lint-ignore no-explicit-any
+      unlockedAchievements: (unlocked.data ?? []).map((u: any) => u.achievement_id),
+      challengeDefs: challengeDefs,
+      // deno-lint-ignore no-explicit-any
+      completedChallenges: (completed.data ?? []).map((c: any) => c.challenge_id + "|" + c.period_start),
+    };
+  },
 
-    // save it all in one transaction (record_workout is in the migration file)
-    const { data: workoutId, error } = await db.rpc("record_workout", {
-      p_user: user.id,
-      p_workout: { ...workout, earnedXp: result.earnedXp },
-      p_exercises: workout.exercises || [],
+  async saveWorkout(userId, workout, result, today) {
+    // record_workout is server-only, so this one call uses the service role key.
+    // We pass the user id we got from their token, never one from the request body.
+    const { data, error } = await adminClient().rpc("record_workout", {
+      p_user: userId,
+      p_workout: {
+        type: workout.type,
+        date: workout.date,
+        startedAt: workout.startedAt ?? "",
+        minutes: workout.minutes,
+        effort: workout.effort ?? null,
+        notes: workout.notes ?? null,
+        earnedXp: result.earnedXp,
+      },
+      p_exercises: workout.exercises ?? [],
       p_xp_events: result.xpEvents,
-      p_streak: { ...result.streak, checkedOn: today },
+      p_streak: {
+        current: result.streak.current,
+        best: result.streak.best,
+        freezesLeft: result.streak.freezesLeft,
+        atRisk: result.streak.atRisk,
+        checkedOn: today,
+      },
       p_challenges: result.challenges,
       p_achievements: result.newAchievements,
     });
-    if (error) throw new Error(error.message);
+    if (error) {
+      return { ok: false, message: error.message };
+    }
+    return { ok: true, workoutId: data as string };
+  },
+};
 
-    // this is what the "Workout saved" and "Level up" screens show
-    return json(200, {
-      workoutId: workoutId,
-      earnedXp: result.earnedXp,
-      xpGained: result.xpGained,
-      xpEvents: result.xpEvents,
-      totalXp: result.totalXp,
-      level: levelProgress(result.totalXp),
-      leveledUp: result.leveledUp,
-      unlocks: result.unlocks,
-      streak: result.streak,
-      challenges: result.challenges,
-      newAchievements: result.newAchievements,
-    });
-  } catch (err) {
-    console.error("log-workout failed", err);
-    return json(500, { error: "couldn't save the workout, try again" });
-  }
-});
+Deno.serve((req) => handleLogWorkout(req, deps));
