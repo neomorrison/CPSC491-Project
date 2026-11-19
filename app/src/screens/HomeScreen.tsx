@@ -359,7 +359,7 @@ export default function HomeScreen({
           </View>
 
           <Text style={styles.loggedLabel}>
-            {workoutsLoggedToday} workouts logged
+            {workoutsLoggedToday} workouts logged today
           </Text>
 
           <Pressable
