@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>App Flow Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* board */
+  --board: #e7e5e0;
+  --dot: #cfccc5;
+  --label: #55534e;
+  --arrow: #ff5b2e;
+  /* app */
+  --bg: #f6f5f2;
+  --card: #ffffff;
+  --ink: #17171c;
+  --muted: #74737a;
+  --line: #e8e6e1;
+  --ember: #ff5b2e;
+  --ember-soft: #fff0ea;
+  --xp: #6c4cf1;
+  --xp-soft: #efebff;
+  --mint: #18a874;
+  --mint-soft: #e5f6ef;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+i { display: inline-grid; width: 24px; height: 24px; flex: none; }
+i svg { width: 100%; height: 100%; }
+html, body { height: 100%; }
+body {
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  background: var(--board);
+  color: var(--ink);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- board chrome ---------- */
+#viewport {
+  position: fixed; inset: 0;
+  background-image: radial-gradient(var(--dot) 1.2px, transparent 1.2px);
+  background-size: 24px 24px;
+  cursor: grab; touch-action: none;
+}
+#viewport.dragging { cursor: grabbing; }
+#board { position: absolute; left: 0; top: 0; transform-origin: 0 0; transition: transform .45s cubic-bezier(.2,.8,.2,1); }
+#board.instant { transition: none; }
+#arrows { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+
+.topbar {
+  position: fixed; left: 16px; top: 16px; right: 16px; z-index: 10;
+  display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; pointer-events: none;
+}
+.panel {
+  pointer-events: auto; background: #fff; border-radius: 14px; padding: 12px 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.08);
+}
+.panel h1 { font-size: 15px; font-weight: 800; }
+.panel p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.controls { display: flex; gap: 6px; align-items: center; }
+.controls button {
+  font: inherit; font-size: 13px; font-weight: 700; border: 1px solid var(--line); background: #fff;
+  border-radius: 9px; height: 32px; min-width: 32px; padding: 0 10px; cursor: pointer; color: var(--ink);
+}
+.controls button:hover { background: var(--bg); }
+.controls .zoom { font-size: 12px; color: var(--muted); width: 44px; text-align: center; }
+
+.row-label { position: absolute; font-size: 22px; font-weight: 800; color: var(--label); white-space: nowrap; }
+.row-label span { display: block; font-size: 14px; font-weight: 500; margin-top: 2px; }
+
+.frame-wrap { position: absolute; }
+.frame-title {
+  font-size: 14px; font-weight: 700; color: var(--label); margin-bottom: 10px;
+  display: flex; gap: 8px; align-items: center;
+}
+.frame-title b { background: var(--ink); color: #fff; font-size: 11px; border-radius: 6px; padding: 2px 7px; }
+.frame-wrap.focus .phone { box-shadow: 0 0 0 4px var(--arrow), 0 20px 50px rgba(0,0,0,.18); }
+
+.arrow-label {
+  position: absolute; transform: translate(-50%, -50%); white-space: nowrap;
+  background: var(--arrow); color: #fff; font-size: 12px; font-weight: 700;
+  padding: 4px 10px; border-radius: 999px; box-shadow: 0 2px 8px rgba(255,91,46,.35); pointer-events: none;
+}
+.back-note {
+  position: absolute; white-space: nowrap; font-size: 12px; font-weight: 700; color: var(--label);
+  background: #fff; border: 1.5px dashed #b9b6ae; padding: 4px 10px; border-radius: 999px;
+}
+
+.note {
+  position: absolute; width: 420px; background: #fffbe6; border: 1px solid #f1e3a1; border-radius: 12px;
+  padding: 16px 18px; font-size: 14px; line-height: 1.5; color: #4d4630; box-shadow: 0 6px 18px rgba(0,0,0,.06);
+}
+.note h3 { font-size: 15px; margin-bottom: 6px; color: #2f2a1a; }
+.note ul { padding-left: 18px; }
+
+/* ---------- phone ---------- */
+.phone {
+  width: 300px; height: 640px; border-radius: 40px; background: var(--bg);
+  border: 8px solid #111; position: relative; overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0,0,0,.16); display: flex; flex-direction: column;
+  transition: box-shadow .3s;
+}
+.phone.dark { background: #15131f; color: #fff; }
+.status { height: 34px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; font-size: 12px; font-weight: 700; }
+.status .pill { width: 74px; height: 20px; background: #111; border-radius: 12px; }
+.status i { width: 14px; height: 14px; }
+.scr { flex: 1; padding: 6px 18px 18px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+.scr.center { justify-content: center; text-align: center; }
+
+.t-xl { font-size: 26px; font-weight: 800; line-height: 1.15; letter-spacing: -.02em; }
+.t-lg { font-size: 20px; font-weight: 800; letter-spacing: -.01em; }
+.t-md { font-size: 14px; font-weight: 700; }
+.t-sm { font-size: 12px; color: var(--muted); }
+.dark .t-sm { color: #a9a5bd; }
+.t-xs { font-size: 11px; color: var(--muted); }
+.row { display: flex; align-items: center; gap: 8px; }
+.between { justify-content: space-between; }
+.grow { flex: 1; }
+
+.card { background: var(--card); border-radius: 18px; padding: 14px; border: 1px solid var(--line); }
+.btn {
+  height: 48px; border-radius: 14px; background: var(--ink); color: #fff; display: flex; align-items: center;
+  justify-content: center; gap: 8px; font-weight: 700; font-size: 15px; flex: none;
+}
+.btn.ember { background: var(--ember); }
+.btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+.dark .btn.ghost { color: #fff; border-color: #3a3550; }
+.btn i { width: 18px; height: 18px; }
+.link { text-align: center; font-size: 13px; font-weight: 700; color: var(--muted); }
+.spacer { flex: 1; }
+
+.hot { position: relative; border-radius: 14px; outline: 2px dashed transparent; outline-offset: 3px; cursor: pointer; transition: outline-color .2s; }
+.show-hot .hot { outline-color: rgba(255,91,46,.55); }
+
+.field { background: #fff; border: 1.5px solid var(--line); border-radius: 12px; height: 46px; display: flex; align-items: center; padding: 0 12px; gap: 10px; font-size: 14px; color: var(--muted); }
+.field i { width: 16px; height: 16px; }
+.field.filled { color: var(--ink); border-color: var(--ink); }
+.label { font-size: 12px; font-weight: 700; margin-bottom: -6px; }
+
+.option { background: #fff; border: 1.5px solid var(--line); border-radius: 14px; padding: 12px; display: flex; gap: 12px; align-items: center; }
+.option.on { border-color: var(--ember); background: var(--ember-soft); }
+.ico { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--bg); flex: none; }
+.ico i { width: 18px; height: 18px; }
+.ico.ember { background: var(--ember-soft); color: var(--ember); }
+.ico.xp { background: var(--xp-soft); color: var(--xp); }
+.ico.mint { background: var(--mint-soft); color: var(--mint); }
+.radio { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line); margin-left: auto; flex: none; }
+.on .radio { border: 6px solid var(--ember); }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { height: 34px; padding: 0 12px; border-radius: 10px; background: #fff; border: 1.5px solid var(--line); display: flex; align-items: center; font-size: 13px; font-weight: 600; gap: 6px; }
+.chip.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.chip i { width: 14px; height: 14px; }
+.day { width: 32px; padding: 0; justify-content: center; }
+
+.bar { height: 10px; border-radius: 99px; background: var(--xp-soft); overflow: hidden; }
+.bar > div { height: 100%; border-radius: 99px; background: var(--xp); }
+.dark .bar { background: #2b2640; }
+
+.tabbar { height: 64px; flex: none; background: #fff; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-around; padding: 0 8px 6px; }
+.tab { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10px; font-weight: 700; color: var(--muted); padding: 4px 6px; border-radius: 10px; }
+.tab i { width: 20px; height: 20px; }
+.tab.on { color: var(--ink); }
+.tab.plus { width: 44px; height: 44px; border-radius: 14px; background: var(--ember); color: #fff; justify-content: center; }
+
+.list-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.list-row:last-child { border-bottom: 0; }
+.chev { width: 16px; height: 16px; color: var(--muted); margin-left: auto; }
+
+.toggle { width: 38px; height: 22px; border-radius: 99px; background: #d8d6d0; position: relative; flex: none; margin-left: auto; }
+.toggle::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; }
+.toggle.on { background: var(--mint); }
+.toggle.on::after { left: 19px; }
+
+.ring { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+.ring > div { width: 50px; height: 50px; border-radius: 50%; background: #fff; display: grid; place-items: center; font-weight: 800; font-size: 14px; }
+
+.badge { font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 99px; background: var(--xp-soft); color: var(--xp); }
+.badge.ember { background: var(--ember-soft); color: var(--ember); }
+.badge.mint { background: var(--mint-soft); color: var(--mint); }
+
+.medal { aspect-ratio: 1; border-radius: 16px; display: grid; place-items: center; background: #fff; border: 1px solid var(--line); }
+.medal i { width: 24px; height: 24px; }
+.medal.lock { background: #efeee9; color: #b5b2aa; }
+.medals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+
+.chart { display: flex; align-items: flex-end; gap: 8px; height: 110px; padding-top: 6px; }
+.chart > div { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; font-size: 10px; color: var(--muted); font-weight: 600; }
+.chart b { width: 100%; border-radius: 6px; background: var(--ember); display: block; }
+.chart b.zero { background: var(--line); height: 4px; }
+
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.cal div { aspect-ratio: 1; border-radius: 7px; background: #efeee9; font-size: 9px; display: grid; place-items: center; color: var(--muted); font-weight: 600; }
+.cal .hit { background: var(--ember); color: #fff; }
+.cal .today { outline: 2px solid var(--ink); outline-offset: 1px; }
+
+.seg { display: flex; background: #ebe9e4; border-radius: 12px; padding: 3px; }
+.seg div { flex: 1; text-align: center; font-size: 12px; font-weight: 700; padding: 7px 0; border-radius: 9px; color: var(--muted); }
+.seg .on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+
+.bubble { background: #fff; border: 1px solid var(--line); border-radius: 16px 16px 16px 4px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; }
+.bubble.me { background: var(--ink); color: #fff; border: 0; border-radius: 16px 16px 4px 16px; align-self: flex-end; }
+.plan-day { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.plan-day:last-child { border: 0; }
+.plan-day b { width: 34px; font-size: 12px; color: var(--muted); }
+
+.back { display: flex; align-items: center; gap: 8px; }
+.back i { width: 20px; height: 20px; }
+</style>
+</head>
+<body>
+<div id="viewport">
+  <div id="board">
+    <svg id="arrows"></svg>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="panel">
+    <h1>Personal Fitness Monitor: app flow</h1>
+    <p>Drag to move around, scroll or pinch to zoom. Click anything with an arrow to jump to the next screen.</p>
+  </div>
+  <div class="panel controls">
+    <button id="hotBtn" title="Show tap targets">Tap targets</button>
+    <button id="zoomOut" title="Zoom out">−</button>
+    <div class="zoom" id="zoomLabel">100%</div>
+    <button id="zoomIn" title="Zoom in">+</button>
+    <button id="fitBtn">Fit</button>
+  </div>
+</div>
+
+<script>
+// ---------- shared bits ----------
+// Icons from Lucide (lucide.dev, ISC license), inlined so the page works offline.
+const ICONS = {"home":"<path d=\"m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\" /><polyline points=\"9 22 9 12 15 12 15 22\" />","bar-chart-3":"<path d=\"M3 3v18h18\" /><path d=\"M18 17V9\" /><path d=\"M13 17V5\" /><path d=\"M8 17v-3\" />","activity":"<path d=\"M22 12h-4l-3 9L9 3l-3 9H2\" />","arrow-left":"<path d=\"m12 19-7-7 7-7\" /><path d=\"M19 12H5\" />","battery-full":"<rect width=\"16\" height=\"10\" x=\"2\" y=\"7\" rx=\"2\" ry=\"2\" /><line x1=\"22\" x2=\"22\" y1=\"11\" y2=\"13\" /><line x1=\"6\" x2=\"6\" y1=\"11\" y2=\"13\" /><line x1=\"10\" x2=\"10\" y1=\"11\" y2=\"13\" /><line x1=\"14\" x2=\"14\" y1=\"11\" y2=\"13\" />","calendar":"<rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\" ry=\"2\" /><line x1=\"16\" x2=\"16\" y1=\"2\" y2=\"6\" /><line x1=\"8\" x2=\"8\" y1=\"2\" y2=\"6\" /><line x1=\"3\" x2=\"21\" y1=\"10\" y2=\"10\" />","check":"<path d=\"M20 6 9 17l-5-5\" />","chevron-right":"<path d=\"m9 18 6-6-6-6\" />","droplets":"<path d=\"M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z\" /><path d=\"M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97\" />","dumbbell":"<path d=\"m6.5 6.5 11 11\" /><path d=\"m21 21-1-1\" /><path d=\"m3 3 1 1\" /><path d=\"m18 22 4-4\" /><path d=\"m2 6 4-4\" /><path d=\"m3 10 7-7\" /><path d=\"m14 21 7-7\" />","flame":"<path d=\"M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z\" />","flower-2":"<path d=\"M12 5a3 3 0 1 1 3 3m-3-3a3 3 0 1 0-3 3m3-3v1M9 8a3 3 0 1 0 3 3M9 8h1m5 0a3 3 0 1 1-3 3m3-3h-1m-2 3v-1\" /><circle cx=\"12\" cy=\"8\" r=\"2\" /><path d=\"M12 10v12\" /><path d=\"M12 22c4.2 0 7-1.667 7-5-4.2 0-7 1.667-7 5Z\" /><path d=\"M12 22c-4.2 0-7-1.667-7-5 4.2 0 7 1.667 7 5Z\" />","footprints":"<path d=\"M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z\" /><path d=\"M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z\" /><path d=\"M16 17h4\" /><path d=\"M4 13h4\" />","grip-vertical":"<circle cx=\"9\" cy=\"12\" r=\"1\" /><circle cx=\"9\" cy=\"5\" r=\"1\" /><circle cx=\"9\" cy=\"19\" r=\"1\" /><circle cx=\"15\" cy=\"12\" r=\"1\" /><circle cx=\"15\" cy=\"5\" r=\"1\" /><circle cx=\"15\" cy=\"19\" r=\"1\" />","heart-pulse":"<path d=\"M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z\" /><path d=\"M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27\" />","history":"<path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\" /><path d=\"M3 3v5h5\" /><path d=\"M12 7v5l4 2\" />","layout-grid":"<rect width=\"7\" height=\"7\" x=\"3\" y=\"3\" rx=\"1\" /><rect width=\"7\" height=\"7\" x=\"14\" y=\"3\" rx=\"1\" /><rect width=\"7\" height=\"7\" x=\"14\" y=\"14\" rx=\"1\" /><rect width=\"7\" height=\"7\" x=\"3\" y=\"14\" rx=\"1\" />","link":"<path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\" /><path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\" />","lock":"<rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\" ry=\"2\" /><path d=\"M7 11V7a5 5 0 0 1 10 0v4\" />","mail":"<rect width=\"20\" height=\"16\" x=\"2\" y=\"4\" rx=\"2\" /><path d=\"m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7\" />","medal":"<path d=\"M7.21 15 2.66 7.14a2 2 0 0 1 .13-2.2L4.4 2.8A2 2 0 0 1 6 2h12a2 2 0 0 1 1.6.8l1.6 2.14a2 2 0 0 1 .14 2.2L16.79 15\" /><path d=\"M11 12 5.12 2.2\" /><path d=\"m13 12 5.88-9.8\" /><path d=\"M8 7h8\" /><circle cx=\"12\" cy=\"17\" r=\"5\" /><path d=\"M12 18v-2h-.5\" />","moon":"<path d=\"M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z\" />","palette":"<circle cx=\"13.5\" cy=\"6.5\" r=\".5\" /><circle cx=\"17.5\" cy=\"10.5\" r=\".5\" /><circle cx=\"8.5\" cy=\"7.5\" r=\".5\" /><circle cx=\"6.5\" cy=\"12.5\" r=\".5\" /><path d=\"M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z\" />","plus":"<path d=\"M5 12h14\" /><path d=\"M12 5v14\" />","scale":"<path d=\"m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z\" /><path d=\"m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z\" /><path d=\"M7 21h10\" /><path d=\"M12 3v18\" /><path d=\"M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2\" />","settings":"<path d=\"M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z\" /><circle cx=\"12\" cy=\"12\" r=\"3\" />","shield-check":"<path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10\" /><path d=\"m9 12 2 2 4-4\" />","signal":"<path d=\"M2 20h.01\" /><path d=\"M7 20v-4\" /><path d=\"M12 20v-8\" /><path d=\"M17 20V8\" /><path d=\"M22 4v16\" />","sliders-horizontal":"<line x1=\"21\" x2=\"14\" y1=\"4\" y2=\"4\" /><line x1=\"10\" x2=\"3\" y1=\"4\" y2=\"4\" /><line x1=\"21\" x2=\"12\" y1=\"12\" y2=\"12\" /><line x1=\"8\" x2=\"3\" y1=\"12\" y2=\"12\" /><line x1=\"21\" x2=\"16\" y1=\"20\" y2=\"20\" /><line x1=\"12\" x2=\"3\" y1=\"20\" y2=\"20\" /><line x1=\"14\" x2=\"14\" y1=\"2\" y2=\"6\" /><line x1=\"8\" x2=\"8\" y1=\"10\" y2=\"14\" /><line x1=\"16\" x2=\"16\" y1=\"18\" y2=\"22\" />","sparkles":"<path d=\"m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z\" /><path d=\"M5 3v4\" /><path d=\"M19 17v4\" /><path d=\"M3 5h4\" /><path d=\"M17 19h4\" />","sun":"<circle cx=\"12\" cy=\"12\" r=\"4\" /><path d=\"M12 2v2\" /><path d=\"M12 20v2\" /><path d=\"m4.93 4.93 1.41 1.41\" /><path d=\"m17.66 17.66 1.41 1.41\" /><path d=\"M2 12h2\" /><path d=\"M20 12h2\" /><path d=\"m6.34 17.66-1.41 1.41\" /><path d=\"m19.07 4.93-1.41 1.41\" />","sunrise":"<path d=\"M12 2v8\" /><path d=\"m4.93 10.93 1.41 1.41\" /><path d=\"M2 18h2\" /><path d=\"M20 18h2\" /><path d=\"m19.07 10.93-1.41 1.41\" /><path d=\"M22 22H2\" /><path d=\"m8 6 4-4 4 4\" /><path d=\"M16 18a4 4 0 0 0-8 0\" />","target":"<circle cx=\"12\" cy=\"12\" r=\"10\" /><circle cx=\"12\" cy=\"12\" r=\"6\" /><circle cx=\"12\" cy=\"12\" r=\"2\" />","timer":"<line x1=\"10\" x2=\"14\" y1=\"2\" y2=\"2\" /><line x1=\"12\" x2=\"15\" y1=\"14\" y2=\"11\" /><circle cx=\"12\" cy=\"14\" r=\"8\" />","trophy":"<path d=\"M6 9H4.5a2.5 2.5 0 0 1 0-5H6\" /><path d=\"M18 9h1.5a2.5 2.5 0 0 0 0-5H18\" /><path d=\"M4 22h16\" /><path d=\"M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22\" /><path d=\"M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22\" /><path d=\"M18 2H6v7a6 6 0 0 0 12 0V2Z\" />","user":"<path d=\"M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2\" /><circle cx=\"12\" cy=\"7\" r=\"4\" />","wifi":"<path d=\"M5 13a10 10 0 0 1 14 0\" /><path d=\"M8.5 16.5a5 5 0 0 1 7 0\" /><path d=\"M2 8.82a15 15 0 0 1 20 0\" /><line x1=\"12\" x2=\"12.01\" y1=\"20\" y2=\"20\" />","zap":"<polygon points=\"13 2 3 14 12 14 11 22 21 10 12 10 13 2\" />"};
+const icon = (n) => `<i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[n]}</svg></i>`;
+const status = (dark) => `<div class="status"><span>9:41</span><div class="pill"></div><span class="row" style="gap:4px">${icon('signal')}${icon('wifi')}${icon('battery-full')}</span></div>`;
+const tabbar = (active) => {
+  const t = (id, ic, label, to) =>
+    `<div class="tab ${active === id ? 'on' : ''} ${to ? 'hot' : ''}" ${to ? `data-to="${to}" data-label="${label} tab"` : ''}>${icon(ic)}${label}</div>`;
+  return `<div class="tabbar">
+    ${t('home', 'home', 'Home')}
+    ${t('progress', 'bar-chart-3', 'Progress', active === 'home' ? 'progress' : '')}
+    <div class="tab plus">${icon('plus')}</div>
+    ${t('awards', 'trophy', 'Awards', active === 'home' ? 'awards' : '')}
+    ${t('profile', 'user', 'Profile', active === 'home' ? 'profile' : '')}
+  </div>`;
+};
+const backBar = (title, right = '') => `<div class="row between"><div class="back">${icon('arrow-left')}<span class="t-md">${title}</span></div>${right}</div>`;
+
+// ---------- screens ----------
+// col/row place each screen on the board. data-to on an element draws an arrow to that screen.
+const screens = [
+  // Row 0: onboarding
+  { id: 'welcome', name: 'Welcome', col: 0, row: 0, html: `
+    <div class="scr center">
+      <div class="spacer"></div>
+      <div style="width:84px;height:84px;border-radius:26px;background:var(--ember);color:#fff;display:grid;place-items:center;margin:0 auto">
+        <i style="width:42px;height:42px">${icon('flame').slice(3, -4)}</i></div>
+      <div class="t-xl" style="margin-top:8px">Build the habit.<br>Level up.</div>
+      <div class="t-sm" style="font-size:14px;line-height:1.5">Log workouts, keep your streak going, and unlock rewards as you get stronger.</div>
+      <div class="row" style="justify-content:center;gap:6px;margin-top:4px">
+        <span class="badge ember">Streaks</span><span class="badge">XP + levels</span><span class="badge mint">Challenges</span></div>
+      <div class="spacer"></div>
+      <div class="btn ember hot" data-to="signup" data-label="Get started">Get started</div>
+      <div class="link">I already have an account</div>
+    </div>` },
+
+  { id: 'signup', name: 'Sign up', col: 1, row: 0, html: `
+    <div class="scr">
+      ${backBar('')}
+      <div class="t-xl">Create your account</div>
+      <div class="t-sm">Takes 30 seconds. Your data stays yours.</div>
+      <div class="label">Name</div><div class="field filled">${icon('user')}Alex Rivera</div>
+      <div class="label">Email</div><div class="field filled">${icon('mail')}alex@csu.fullerton.edu</div>
+      <div class="label">Password</div><div class="field">${icon('lock')}••••••••</div>
+      <div class="spacer"></div>
+      <div class="btn hot" data-to="goal" data-label="Create account">Create account</div>
+      <div class="t-xs" style="text-align:center">By signing up you agree to the Terms and Privacy Policy.</div>
+    </div>` },
+
+  { id: 'goal', name: 'Pick a goal', col: 2, row: 0, html: `
+    <div class="scr">
+      ${backBar('', '<span class="t-xs">Step 1 of 2</span>')}
+      <div class="bar" style="height:6px;background:#e8e6e1"><div style="width:50%;background:var(--ember)"></div></div>
+      <div class="t-xl">What's your main goal?</div>
+      <div class="option">${'<div class="ico ember">' + icon('dumbbell') + '</div>'}<div><div class="t-md">Build muscle</div><div class="t-xs">Get stronger over time</div></div><div class="radio"></div></div>
+      <div class="option">${'<div class="ico ember">' + icon('scale') + '</div>'}<div><div class="t-md">Lose weight</div><div class="t-xs">Burn more, feel lighter</div></div><div class="radio"></div></div>
+      <div class="option on">${'<div class="ico ember">' + icon('activity') + '</div>'}<div><div class="t-md">Just be more active</div><div class="t-xs">Make working out a habit</div></div><div class="radio"></div></div>
+      <div class="option">${'<div class="ico ember">' + icon('medal') + '</div>'}<div><div class="t-md">Train for an event</div><div class="t-xs">5K, hike, sports season</div></div><div class="radio"></div></div>
+      <div class="spacer"></div>
+      <div class="btn hot" data-to="schedule" data-label="Continue">Continue</div>
+    </div>` },
+
+  { id: 'schedule', name: 'Schedule + level', col: 3, row: 0, html: `
+    <div class="scr" style="gap:8px">
+      ${backBar('', '<span class="t-xs">Step 2 of 2</span>')}
+      <div class="bar" style="height:6px;background:#e8e6e1"><div style="width:100%;background:var(--ember)"></div></div>
+      <div class="t-xl">When can you work out?</div>
+      <div class="label">Days</div>
+      <div class="chips">
+        <div class="chip day on">M</div><div class="chip day">T</div><div class="chip day on">W</div><div class="chip day">T</div>
+        <div class="chip day on">F</div><div class="chip day">S</div><div class="chip day">S</div></div>
+      <div class="label">Time of day</div>
+      <div class="chips"><div class="chip">${icon('sunrise')}Morning</div><div class="chip">${icon('sun')}Midday</div><div class="chip on">${icon('moon')}Evening</div></div>
+      <div class="label">How long?</div>
+      <div class="chips"><div class="chip">20 min</div><div class="chip on">30 min</div><div class="chip">45 min</div><div class="chip">60+</div></div>
+      <div class="label">Experience</div>
+      <div class="chips"><div class="chip on">Beginner</div><div class="chip">Some</div><div class="chip">Experienced</div></div>
+      <div class="spacer"></div>
+      <div class="btn ember hot" data-to="home" data-label="Start my journey">Start my journey</div>
+    </div>` },
+
+  // Row 1: core loop
+  { id: 'home', name: 'Home', col: 0, row: 1, html: `
+    <div class="scr" style="gap:10px">
+      <div class="row between">
+        <div><div class="t-sm">Monday, Oct 19</div><div class="t-lg">Hey Alex</div></div>
+        <div class="t-xs" style="font-weight:700;color:var(--ink);padding:4px 6px">${icon('sliders-horizontal')}</div>
+      </div>
+      <div class="card">
+        <div class="row between"><div class="row"><div class="ico xp">${icon('zap')}</div><div><div class="t-md">Level 7</div><div class="t-xs">Regular</div></div></div><span class="badge">620 / 700 XP</span></div>
+        <div class="bar" style="margin-top:10px"><div style="width:89%"></div></div>
+        <div class="t-xs" style="margin-top:6px">80 XP to Level 8</div>
+      </div>
+      <div class="row" style="gap:10px">
+        <div class="card grow"><div class="row"><div class="ico ember">${icon('flame')}</div><div><div class="t-lg">5</div><div class="t-xs">day streak</div></div></div></div>
+        <div class="card grow"><div class="row"><div class="ring" style="width:40px;height:40px;background:conic-gradient(var(--mint) 75%, var(--line) 0)"><div style="width:30px;height:30px;font-size:10px">3/4</div></div><div><div class="t-md">Weekly</div><div class="t-xs">goal</div></div></div></div>
+      </div>
+      <div class="card" style="background:var(--ink);color:#fff;border:0">
+        <div class="row between"><span class="t-xs" style="color:#a9a5bd">TODAY'S CHALLENGE</span><span class="badge ember" style="background:#3a2620">+40 XP</span></div>
+        <div class="t-md" style="margin-top:6px">50 squat day</div>
+        <div class="bar" style="margin-top:8px;background:#2f2c3a"><div style="width:60%;background:var(--ember)"></div></div>
+        <div class="t-xs" style="color:#a9a5bd;margin-top:4px">30 of 50 done</div>
+      </div>
+      <div class="btn ember hot" data-to="log" data-label="Log workout">${icon('plus')}Log workout</div>
+      <div class="t-md" style="margin-top:2px">Recent</div>
+      <div class="list-row" style="padding:4px 0"><div class="ico mint">${icon('dumbbell')}</div><div><div class="t-md" style="font-size:13px">Full body</div><div class="t-xs">Fri · 35 min · +60 XP</div></div></div>
+    </div>
+    ${tabbar('home')}` },
+
+  { id: 'log', name: 'Log workout', col: 1, row: 1, html: `
+    <div class="scr">
+      ${backBar('Log workout')}
+      <div class="chips"><div class="chip on">${icon('dumbbell')}Strength</div><div class="chip">${icon('heart-pulse')}Cardio</div><div class="chip">${icon('flower-2')}Yoga</div><div class="chip">${icon('trophy')}Sports</div></div>
+      <div class="row" style="gap:10px">
+        <div class="field filled grow">${icon('timer')}35 min</div>
+        <div class="field filled grow">${icon('calendar')}Today</div>
+      </div>
+      <div class="card" style="padding:4px 14px">
+        <div class="list-row"><div class="grow"><div class="t-md">Squats</div><div class="t-xs">3 sets × 10 · 95 lb</div></div>${icon('grip-vertical')}</div>
+        <div class="list-row"><div class="grow"><div class="t-md">Push-ups</div><div class="t-xs">3 sets × 15</div></div>${icon('grip-vertical')}</div>
+        <div class="list-row"><div class="grow"><div class="t-md">Plank</div><div class="t-xs">3 × 45 sec</div></div>${icon('grip-vertical')}</div>
+        <div class="list-row" style="color:var(--ember);font-weight:700;font-size:13px">${icon('plus')}&nbsp;Add exercise</div>
+      </div>
+      <div class="label">How hard was it?</div>
+      <div class="chips"><div class="chip">Easy</div><div class="chip on">Just right</div><div class="chip">Tough</div></div>
+      <div class="spacer"></div>
+      <div class="btn ember hot" data-to="saved" data-label="Save workout">Save workout</div>
+    </div>` },
+
+  { id: 'saved', name: 'Workout saved', col: 2, row: 1, html: `
+    <div class="scr center" style="gap:10px">
+      <div class="spacer"></div>
+      <div style="width:72px;height:72px;border-radius:50%;background:var(--mint);color:#fff;display:grid;place-items:center;margin:0 auto">${icon('check')}</div>
+      <div class="t-xl">Workout saved!</div>
+      <div class="t-sm">Nice job showing up today.</div>
+      <div class="card" style="text-align:left;padding:4px 14px">
+        <div class="list-row"><span class="grow t-sm" style="color:var(--ink)">Workout logged</span><b>+50</b></div>
+        <div class="list-row"><span class="grow t-sm" style="color:var(--ink)">Streak bonus (6 days)</span><b>+30</b></div>
+        <div class="list-row"><span class="grow t-sm" style="color:var(--ink)">Challenge progress</span><b>+20</b></div>
+        <div class="list-row"><span class="grow t-md">Total</span><b style="color:var(--xp)">+100 XP</b></div>
+      </div>
+      <div class="row" style="justify-content:center"><div class="ico ember">${icon('flame')}</div><span class="t-md">6 day streak</span></div>
+      <div class="bar"><div style="width:100%"></div></div>
+      <div class="spacer"></div>
+      <div class="btn hot" data-to="levelup" data-label="Continue">Continue</div>
+    </div>` },
+
+  { id: 'levelup', name: 'Level up', col: 3, row: 1, dark: true, html: `
+    <div class="scr center" style="background:radial-gradient(circle at 50% 35%, #4b2a8f 0%, #15131f 62%)">
+      <div class="spacer"></div>
+      <div class="t-sm" style="letter-spacing:.2em;font-weight:800">LEVEL UP</div>
+      <div style="width:132px;height:132px;border-radius:50%;margin:6px auto;display:grid;place-items:center;background:conic-gradient(#ff5b2e,#ffb02e,#ff5b2e);box-shadow:0 0 60px rgba(255,91,46,.55)">
+        <div style="width:112px;height:112px;border-radius:50%;background:#15131f;display:grid;place-items:center;font-size:52px;font-weight:800">8</div></div>
+      <div class="t-xl">You hit Level 8!</div>
+      <div class="t-sm">You unlocked something new:</div>
+      <div class="card" style="background:#221e33;border-color:#3a3550;color:#fff;text-align:left">
+        <div class="row"><div class="ico" style="background:linear-gradient(135deg,#ff5b2e,#ffb02e);color:#fff">${icon('palette')}</div><div><div class="t-md">Ember profile theme</div><div class="t-xs" style="color:#a9a5bd">Show it off on your profile</div></div></div></div>
+      <div class="spacer"></div>
+      <div class="btn ember hot" data-to="profile" data-label="Show it off">Show it off</div>
+      <div class="btn ghost" data-back="Home">Back to home</div>
+    </div>` },
+
+  // Row 2: tabs
+  { id: 'progress', name: 'Progress', col: 0, row: 2, html: `
+    <div class="scr" style="gap:8px">
+      <div class="t-lg">Progress</div>
+      <div class="seg"><div class="on">Week</div><div>Month</div><div>Year</div></div>
+      <div class="card">
+        <div class="row between"><span class="t-md">Minutes this week</span><span class="badge mint">+18%</span></div>
+        <div class="chart" style="height:84px">
+          <div><b style="height:70%"></b>M</div><div><b class="zero"></b>T</div><div><b style="height:45%"></b>W</div>
+          <div><b class="zero"></b>T</div><div><b style="height:90%"></b>F</div><div><b class="zero"></b>S</div><div><b style="height:35%;background:var(--xp)"></b>S</div>
+        </div>
+      </div>
+      <div class="row" style="gap:8px">
+        <div class="card grow" style="padding:10px"><div class="t-lg">14</div><div class="t-xs">workouts</div></div>
+        <div class="card grow" style="padding:10px"><div class="t-lg">9h</div><div class="t-xs">total</div></div>
+        <div class="card grow" style="padding:10px"><div class="t-lg">12</div><div class="t-xs">best streak</div></div>
+      </div>
+      <div class="card">
+        <div class="t-md" style="margin-bottom:8px">October</div>
+        <div class="cal">
+          ${Array.from({length: 21}, (_, i) => `<div class="${[1,3,4,7,9,11,12,14,15,16,17,18].includes(i) ? 'hit' : ''} ${i === 18 ? 'today' : ''}">${i + 1}</div>`).join('')}
+        </div>
+      </div>
+      <div class="btn ghost hot" data-to="aiplan" data-label="Ask AI">${icon('sparkles')}Ask AI about my progress</div>
+    </div>
+    ${tabbar('progress')}` },
+
+  { id: 'awards', name: 'Awards', col: 1, row: 2, html: `
+    <div class="scr">
+      <div class="t-lg">Awards</div>
+      <div class="seg"><div class="on">Challenges</div><div>Achievements</div></div>
+      <div class="card hot" data-to="challenge" data-label="Open challenge">
+        <div class="row between"><span class="badge ember">Daily</span><span class="t-xs">ends in 6h</span></div>
+        <div class="t-md" style="margin-top:8px">50 squat day</div>
+        <div class="bar" style="margin-top:8px;background:var(--ember-soft)"><div style="width:60%;background:var(--ember)"></div></div>
+        <div class="row between" style="margin-top:4px"><span class="t-xs">30 / 50</span><span class="t-xs" style="font-weight:700;color:var(--xp)">+40 XP</span></div>
+      </div>
+      <div class="card">
+        <div class="row between"><span class="badge">Weekly</span><span class="t-xs">4 days left</span></div>
+        <div class="t-md" style="margin-top:8px">Work out 4 times</div>
+        <div class="bar" style="margin-top:8px"><div style="width:75%"></div></div>
+        <div class="row between" style="margin-top:4px"><span class="t-xs">3 / 4</span><span class="t-xs" style="font-weight:700;color:var(--xp)">+150 XP</span></div>
+      </div>
+      <div class="t-md">Medals</div>
+      <div class="medals">
+        <div class="medal" style="color:var(--ember)">${icon('flame')}</div>
+        <div class="medal" style="color:var(--xp)">${icon('zap')}</div>
+        <div class="medal" style="color:var(--mint)">${icon('footprints')}</div>
+        <div class="medal" style="color:#e0a100">${icon('sunrise')}</div>
+        <div class="medal lock">${icon('lock')}</div><div class="medal lock">${icon('lock')}</div>
+        <div class="medal lock">${icon('lock')}</div><div class="medal lock">${icon('lock')}</div>
+      </div>
+    </div>
+    ${tabbar('awards')}` },
+
+  { id: 'challenge', name: 'Challenge details', col: 2, row: 2, html: `
+    <div class="scr">
+      ${backBar('Challenge')}
+      <div class="ring" style="width:150px;height:150px;margin:8px auto 0;background:conic-gradient(var(--ember) 60%, var(--ember-soft) 0)">
+        <div style="width:124px;height:124px;flex-direction:column;display:flex;justify-content:center;align-items:center"><div class="t-xl">30</div><div class="t-xs">of 50 squats</div></div></div>
+      <div style="text-align:center"><div class="t-lg">50 squat day</div><div class="t-sm">Daily challenge · ends in 6h</div></div>
+      <div class="row" style="justify-content:center;gap:6px"><span class="badge">+40 XP</span><span class="badge ember">Counts toward streak</span></div>
+      <div class="card">
+        <div class="t-md">Tips</div>
+        <div class="t-sm" style="margin-top:4px;line-height:1.5">Break it up: 5 sets of 10 through the day works. Keep your chest up and push through your heels.</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="btn ember hot" data-to="log" data-label="Log squats">Log squats</div>
+    </div>` },
+
+  { id: 'profile', name: 'Profile', col: 3, row: 2, html: `
+    <div class="scr">
+      <div class="row between"><div class="t-lg">Profile</div>${icon('settings')}</div>
+      <div style="text-align:center">
+        <div style="width:96px;height:96px;margin:0 auto;border-radius:50%;padding:5px;background:conic-gradient(#ff5b2e,#ffb02e,#ff5b2e)">
+          <div style="width:100%;height:100%;border-radius:50%;background:#ffe2d6;display:grid;place-items:center;font-size:30px;font-weight:800;color:var(--ember)">AR</div></div>
+        <div class="t-lg" style="margin-top:8px">Alex Rivera</div>
+        <div class="row" style="justify-content:center;margin-top:4px"><span class="badge">Level 8 · Regular</span><span class="badge ember">Ember theme</span></div>
+      </div>
+      <div class="t-md">Profile themes</div>
+      <div class="row" style="gap:8px">
+        <div style="flex:1;height:44px;border-radius:12px;background:#d9d7d1"></div>
+        <div style="flex:1;height:44px;border-radius:12px;background:linear-gradient(135deg,#ff5b2e,#ffb02e);outline:2px solid var(--ink);outline-offset:2px"></div>
+        <div style="flex:1;height:44px;border-radius:12px;background:#efeee9;display:grid;place-items:center;color:#b5b2aa;font-size:10px;font-weight:700">Lv 12</div>
+        <div style="flex:1;height:44px;border-radius:12px;background:#efeee9;display:grid;place-items:center;color:#b5b2aa;font-size:10px;font-weight:700">Lv 20</div>
+      </div>
+      <div class="card" style="padding:2px 14px">
+        <div class="list-row hot" data-to="customize" data-label="Customize home"><div class="ico">${icon('layout-grid')}</div><span class="t-md">Customize home</span>${icon('chevron-right').replace('<i', '<i class="chev"')}</div>
+        <div class="list-row hot" data-to="aiconnect" data-label="AI assistant"><div class="ico xp">${icon('sparkles')}</div><span class="t-md">AI assistant</span><span class="t-xs" style="margin-left:auto">Off</span></div>
+        <div class="list-row"><div class="ico">${icon('target')}</div><span class="t-md">Goals and schedule</span>${icon('chevron-right').replace('<i', '<i class="chev"')}</div>
+      </div>
+    </div>
+    ${tabbar('profile')}` },
+
+  { id: 'customize', name: 'Customize home', col: 4, row: 2, html: `
+    <div class="scr" style="gap:8px">
+      ${backBar('Customize home', '<span class="t-md" style="color:var(--ember)">Done</span>')}
+      <div class="t-sm">Pick what shows up on your home screen. Drag to reorder.</div>
+      <div class="card" style="padding:2px 14px">
+        ${[['zap','Level progress',1],['flame','Streak',1],['target','Weekly goal',1],['trophy',"Today's challenge",1],['history','Recent workouts',1],['footprints','Steps',0],['droplets','Water',0],['moon','Sleep',0]]
+          .map(([ic, n, on]) => `<div class="list-row" style="padding:6px 0">${icon('grip-vertical')}<div class="ico">${icon(ic)}</div><span class="t-md" style="font-size:13px">${n}</span><div class="toggle ${on ? 'on' : ''}"></div></div>`).join('')}
+      </div>
+      <div class="spacer"></div>
+      <div class="btn" data-back="Home">Save</div>
+    </div>` },
+
+  // Row 3: AI
+  { id: 'aiconnect', name: 'Connect AI (optional)', col: 3, row: 3, html: `
+    <div class="scr">
+      ${backBar('AI assistant')}
+      <div class="row" style="gap:10px"><div class="ico xp" style="width:40px;height:40px;border-radius:12px">${icon('sparkles')}</div><div class="t-xl">Get help from AI</div></div>
+      <div class="t-sm" style="line-height:1.5">Connect an AI assistant (like Claude or ChatGPT) through MCP. It can read your logs to give advice and add workout plans to the app for you to approve. Totally optional.</div>
+      <div class="card" style="padding:2px 14px">
+        <div class="t-xs" style="padding-top:10px;font-weight:700">WHAT IT CAN SEE</div>
+        <div class="list-row"><span class="t-md" style="font-size:13px">Workouts</span><div class="toggle on"></div></div>
+        <div class="list-row"><span class="t-md" style="font-size:13px">Goals and schedule</span><div class="toggle on"></div></div>
+        <div class="list-row"><span class="t-md" style="font-size:13px">Body stats</span><div class="toggle"></div></div>
+        <div class="t-xs" style="padding-top:10px;font-weight:700">WHAT IT CAN DO</div>
+        <div class="list-row"><span class="t-md" style="font-size:13px">Suggest workout plans</span><div class="toggle on"></div></div>
+      </div>
+      <div class="row t-xs" style="gap:6px">${icon('shield-check')}Not medical advice. You can disconnect anytime.</div>
+      <div class="spacer"></div>
+      <div class="btn hot" data-to="aiplan" data-label="Connect">${icon('link')}Connect assistant</div>
+    </div>` },
+
+  { id: 'aiplan', name: 'Suggested plan (from AI)', col: 4, row: 3, html: `
+    <div class="scr" style="gap:10px">
+      ${backBar('Weekly plan')}
+      <div class="row" style="gap:8px;background:var(--xp-soft);border-radius:12px;padding:8px 10px"><div class="ico xp" style="width:28px;height:28px;background:#fff">${icon('sparkles')}</div><span class="t-md" style="font-size:12.5px;color:var(--xp)">Suggested by your assistant</span></div>
+      <div class="bubble">You hit your goal 3 weeks in a row, so I bumped you to <b>4 days</b> this week. Squats are going up 5 lb.</div>
+      <div class="card" style="padding:4px 14px">
+        <div class="plan-day"><b>MON</b><div class="ico mint">${icon('dumbbell')}</div><div class="grow">Lower body<div class="t-xs">35 min</div></div></div>
+        <div class="plan-day"><b>WED</b><div class="ico ember">${icon('heart-pulse')}</div><div class="grow">Pickup basketball<div class="t-xs">45 min · swapped in at your request</div></div></div>
+        <div class="plan-day"><b>FRI</b><div class="ico mint">${icon('dumbbell')}</div><div class="grow">Upper body<div class="t-xs">35 min</div></div></div>
+        <div class="plan-day"><b>SAT</b><div class="ico xp">${icon('flower-2')}</div><div class="grow">Stretch + core<div class="t-xs">20 min</div></div></div>
+      </div>
+      <div class="spacer"></div>
+      <div class="btn ember" data-back="Home">Accept plan</div>
+      <div class="row" style="gap:8px"><div class="btn ghost" style="flex:1">Edit</div><div class="btn ghost" style="flex:1">Dismiss</div></div>
+    </div>` },
+];
+
+const rows = [
+  { title: 'Onboarding', sub: 'First time opening the app' },
+  { title: 'Core loop', sub: 'Log a workout, earn XP, level up' },
+  { title: 'Tabs', sub: 'Progress, awards, profile' },
+  { title: 'AI assistant', sub: 'Optional. Reads your logs for advice and suggests plans you approve.' },
+];
+
+// ---------- layout ----------
+const W = 300, H = 640, GX = 170, GY = 230, LABEL = 120, TITLE = 30;
+const board = document.getElementById('board');
+const svg = document.getElementById('arrows');
+const rowY = (r) => r * (H + TITLE + GY) + 60;
+const colX = (c) => LABEL + 200 + c * (W + GX);
+
+rows.forEach((r, i) => {
+  const el = document.createElement('div');
+  el.className = 'row-label';
+  el.style.left = '0px';
+  el.style.top = rowY(i) + TITLE + 'px';
+  el.style.width = '260px';
+  el.style.whiteSpace = 'normal';
+  el.innerHTML = `${r.title}<span>${r.sub}</span>`;
+  board.appendChild(el);
+});
+
+screens.forEach((s, i) => {
+  const wrap = document.createElement('div');
+  wrap.className = 'frame-wrap';
+  wrap.id = 'f-' + s.id;
+  wrap.style.left = colX(s.col) + 'px';
+  wrap.style.top = rowY(s.row) + 'px';
+  wrap.innerHTML = `<div class="frame-title"><b>${i + 1}</b>${s.name}</div>
+    <div class="phone ${s.dark ? 'dark' : ''}">${status(s.dark)}${s.html}</div>`;
+  board.appendChild(wrap);
+});
+
+const note = document.createElement('div');
+note.className = 'note';
+note.style.left = colX(4) + 'px';
+note.style.top = rowY(0) + TITLE + 'px';
+note.innerHTML = `<h3>Notes for the team</h3><ul>
+  <li>Orange arrows are taps that go to a new screen. Dashed tags mean "goes back to Home".</li>
+  <li>The orange + in the tab bar opens Log workout from anywhere.</li>
+  <li>XP numbers follow the gamification engine design in the proposal: +50 per workout, +5 per streak day (max +30), Level 7 to 8 takes 700 XP.</li>
+  <li>Colors: ember orange for streaks and actions, purple for XP and levels, green for done.</li>
+  <li>This is a starting point for Gala to restyle in Figma.</li></ul>`;
+board.appendChild(note);
+
+const W_BOARD = colX(4) + W + 220, H_BOARD = rowY(3) + H + TITLE + 120;
+board.style.width = W_BOARD + 'px';
+board.style.height = H_BOARD + 'px';
+svg.setAttribute('width', W_BOARD);
+svg.setAttribute('height', H_BOARD);
+
+
+// ---------- pan + zoom ----------
+let scale = 1, tx = 0, ty = 0;
+const viewport = document.getElementById('viewport');
+const zoomLabel = document.getElementById('zoomLabel');
+function apply(instant) {
+  board.classList.toggle('instant', !!instant);
+  board.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  zoomLabel.textContent = Math.round(scale * 100) + '%';
+}
+function zoomAt(f, cx, cy, instant) {
+  const ns = Math.min(2, Math.max(0.12, scale * f));
+  tx = cx - (cx - tx) * (ns / scale);
+  ty = cy - (cy - ty) * (ns / scale);
+  scale = ns;
+  apply(instant);
+}
+function fit() {
+  const vw = innerWidth, vh = innerHeight - 90;
+  scale = Math.min(vw / W_BOARD, vh / H_BOARD) * 0.96;
+  tx = (vw - W_BOARD * scale) / 2;
+  ty = 90 + (vh - H_BOARD * scale) / 2;
+  apply();
+}
+function focusScreen(id) {
+  const s = screens.find((x) => x.id === id);
+  const vw = innerWidth, vh = innerHeight;
+  scale = Math.min(1, (vh - 140) / (H + TITLE));
+  tx = vw / 2 - (colX(s.col) + W / 2) * scale;
+  ty = (vh + 60) / 2 - (rowY(s.row) + (H + TITLE) / 2) * scale;
+  apply();
+  document.querySelectorAll('.frame-wrap.focus').forEach((e) => e.classList.remove('focus'));
+  document.getElementById('f-' + id).classList.add('focus');
+}
+
+viewport.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) zoomAt(Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY, true);
+  else { tx -= e.deltaX; ty -= e.deltaY; apply(true); }
+}, { passive: false });
+
+const pointers = new Map();
+let drag = null, pinch = null, moved = false;
+viewport.addEventListener('pointerdown', (e) => {
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  moved = false;
+  if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, tx, ty };
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), scale };
+    drag = null;
+  }
+});
+viewport.addEventListener('pointermove', (e) => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (drag) {
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 4) { moved = true; viewport.classList.add('dragging'); viewport.setPointerCapture(e.pointerId); }
+    tx = drag.tx + dx; ty = drag.ty + dy; apply(true);
+  } else if (pinch && pointers.size === 2) {
+    moved = true;
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    zoomAt((pinch.scale * d / pinch.d) / scale, (a.x + b.x) / 2, (a.y + b.y) / 2, true);
+  }
+});
+const up = (e) => { pointers.delete(e.pointerId); if (pointers.size === 0) { drag = null; pinch = null; viewport.classList.remove('dragging'); } };
+viewport.addEventListener('pointerup', up);
+viewport.addEventListener('pointercancel', up);
+viewport.addEventListener('click', (e) => {
+  if (moved) return;
+  const hot = e.target.closest('[data-to]');
+  if (hot) focusScreen(hot.dataset.to);
+});
+
+document.getElementById('zoomIn').onclick = () => zoomAt(1.25, innerWidth / 2, innerHeight / 2);
+document.getElementById('zoomOut').onclick = () => zoomAt(0.8, innerWidth / 2, innerHeight / 2);
+document.getElementById('fitBtn').onclick = () => { document.querySelectorAll('.frame-wrap.focus').forEach((e) => e.classList.remove('focus')); fit(); };
+document.getElementById('hotBtn').onclick = (e) => { document.body.classList.toggle('show-hot'); e.currentTarget.classList.toggle('on'); };
+
+// ---------- arrows ----------
+// Measure elements in board coordinates (offset chain, unaffected by the zoom transform).
+function boxOf(el) {
+  let x = 0, y = 0, n = el;
+  while (n && n !== board) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+  return { x, y, w: el.offsetWidth, h: el.offsetHeight };
+}
+function drawArrows() {
+  svg.innerHTML = `<defs><marker id="head" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--arrow)"/></marker></defs>`;
+  board.querySelectorAll('.arrow-label, .back-note').forEach((e) => e.remove());
+
+  board.querySelectorAll('.frame-wrap').forEach((wrap) => {
+    const from = screens.find((s) => 'f-' + s.id === wrap.id);
+    wrap.querySelectorAll('[data-to]').forEach((hot) => {
+      const to = screens.find((s) => s.id === hot.dataset.to);
+      const h = boxOf(hot);
+      const t = boxOf(document.getElementById('f-' + to.id).querySelector('.phone'));
+      let sx, sy, ex, ey, c1, c2;
+      if (to.row === from.row && to.col > from.col) {
+        // same row, to the right
+        sx = colX(from.col) + W + 4; sy = h.y + h.h / 2;
+        ex = t.x - 6; ey = Math.min(Math.max(sy, t.y + 60), t.y + t.h - 60);
+        const k = (ex - sx) / 2;
+        c1 = [sx + k, sy]; c2 = [ex - k, ey];
+      } else if (to.row > from.row || (to.row === from.row && to.col < from.col)) {
+        // below: leave from the bottom of the tap target, enter the top of the screen
+        sx = h.x + h.w / 2; sy = h.y + h.h;
+        ex = t.x + t.w / 2; ey = t.y - TITLE - 4;
+        const k = Math.max(80, (ey - sy) / 2);
+        c1 = [sx, sy + k]; c2 = [ex, ey - k];
+      } else {
+        // above: leave from the side of the frame next to the tap target, enter the bottom of the screen
+        const left = to.col < from.col;
+        sx = left ? colX(from.col) - 4 : colX(from.col) + W + 4; sy = h.y + h.h / 2;
+        ex = t.x + t.w / 2; ey = t.y + t.h + 6;
+        c1 = [sx + (left ? -90 : 90), sy]; c2 = [ex, ey + 140];
+      }
+      const d = `M${sx},${sy} C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${ex},${ey}`;
+      svg.insertAdjacentHTML('beforeend',
+        `<path d="${d}" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" opacity=".9"/>
+         <path d="${d}" fill="none" stroke="var(--arrow)" stroke-width="3" stroke-linecap="round" marker-end="url(#head)"/>
+         <circle cx="${sx}" cy="${sy}" r="5" fill="var(--arrow)" stroke="#fff" stroke-width="2"/>`);
+      // label at the curve midpoint (t = .5)
+      const mx = (sx + 3 * c1[0] + 3 * c2[0] + ex) / 8, my = (sy + 3 * c1[1] + 3 * c2[1] + ey) / 8;
+      const lab = document.createElement('div');
+      lab.className = 'arrow-label';
+      lab.style.left = mx + 'px'; lab.style.top = my + 'px';
+      lab.textContent = hot.dataset.label;
+      board.appendChild(lab);
+    });
+    wrap.querySelectorAll('[data-back]').forEach((el) => {
+      const b = boxOf(el);
+      const tag = document.createElement('div');
+      tag.className = 'back-note';
+      tag.style.left = colX(from.col) + W + 14 + 'px';
+      tag.style.top = b.y + b.h / 2 - 13 + 'px';
+      tag.textContent = '↩ back to ' + el.dataset.back;
+      board.appendChild(tag);
+    });
+  });
+}
+
+fit();
+(document.fonts ? document.fonts.ready : Promise.resolve()).then(drawArrows);
+</script>
+</body>
+</html>

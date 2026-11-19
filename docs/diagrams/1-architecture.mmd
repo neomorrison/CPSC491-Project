@@ -1,0 +1,32 @@
+flowchart LR
+    subgraph P["Presentation tier"]
+        App["Mobile app<br/>(React Native + Expo)"]
+    end
+    subgraph A["Application tier (Supabase)"]
+        Auth["Supabase Auth<br/>(accounts, sessions)"]
+        Fn["Edge Function<br/>log-workout"]
+        Engine["Gamification engine<br/>(XP, levels, streaks,<br/>achievements, challenges)"]
+        Cron["Daily streak job<br/>(scheduled)"]
+        Plan["Edge Function<br/>save-plan<br/>(safety checks)"]
+    end
+    subgraph D["Data tier"]
+        DB[("PostgreSQL<br/>with Row Level Security")]
+    end
+    subgraph AI["Optional AI layer"]
+        Assistant["User's AI assistant"]
+        MCP["MCP server<br/>(read tools + plan tools)"]
+    end
+    App -- "sign up / log in" --> Auth
+    App -- "save workout" --> Fn
+    Fn --> Engine
+    Engine -- "XP events, streak,<br/>challenge progress" --> DB
+    Cron --> Engine
+    App -- "read own data" --> DB
+    Assistant -- "MCP requests" --> MCP
+    MCP -- "read logs, goals, progress<br/>(permitted data only)" --> DB
+    MCP -- "create or update plan" --> Plan
+    Plan -- "plan saved as suggested" --> DB
+    App -- "accept or edit plan" --> DB
+    Auth -. "user identity" .-> DB
+    classDef opt fill:#efebff,stroke:#6c4cf1,color:#17171c;
+    class Assistant,MCP opt;
