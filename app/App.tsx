@@ -5,6 +5,8 @@ import HomeScreen from './src/screens/HomeScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import ScreenActions from './src/components/ScreenActions';
 import HomeSummary from './src/components/HomeSummary';
+import ProgressScreen from './src/screens/ProgressScreen';
+import LogWorkoutScreen from './src/screens/LogWorkoutScreen';
 import AuthGate from './src/components/AuthGate';
 import { supabase } from './src/lib/supabase';
 import {
@@ -29,8 +31,28 @@ const colors = {
     teal: '#087F80', orange: '#FFAB73', pink: '#FFADDD', mint: '#B5EDDD',
 }; 
 
-type Workout = { id: number; name: string; minutes: number; date: string }; 
-const dateKey = (date: Date) => `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+
+type Exercise = {
+  id: number;
+  name: string;
+  sets: number;
+  reps: number;
+  weight: number;
+};
+
+type Workout = {
+  id: number;
+  name: string;
+  minutes: number;
+  date: string;
+  workoutType?: 'Strength' | 'Cardio' | 'Mobility';
+  intensity?: 'Light' | 'Moderate' | 'Hard';
+  exercises?: Exercise[];
+  notes?: string;
+};
+
+const dateKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 function ProgressBar({ value, total }: { value: number; total:number }) {
     const percent = 
     total > 0 
@@ -168,15 +190,95 @@ async function saveProfile(changes: ProfileChanges) {
       workouts.some(w => w.date === today && w.minutes >= 10);
 
     const medals = challengeClaimed ? 1 : 0; 
-    function saveWorkout() {
-        const minutes = Number(duration); 
-        if (!workoutName.trim() || !Number.isFinite(minutes) || minutes <= 0 || !Number.isInteger(minutes)) {
-            Alert.alert('Check workout', 'Enter a workout name and a positive whole number of minutes.'); return ;
-        }
-        setWorkouts(previous => [...previous, { id: Date.now(), name: workoutName.trim(), minutes, date: today }]);
-        setWorkoutName(''); setDuration(''); setScreen('Home');
-    }
+    
+function saveWorkout(details: {
+  workoutType: 'Strength' | 'Cardio' | 'Mobility';
+  intensity: 'Light' | 'Moderate' | 'Hard';
+  date: string;
+  exercises: {
+    id: number;
+    name: string;
+    sets: number;
+    reps: number;
+    weight: number;
+  }[];
+  notes: string;
+}) {
+  const minutes = Number(duration);
 
+  // Validate workout name and duration
+  if (
+    !workoutName.trim() ||
+    !Number.isInteger(minutes) ||
+    minutes <= 0
+  ) {
+    Alert.alert(
+      'Check workout',
+      'Enter a workout name and a positive whole number of minutes.'
+    );
+    return;
+  }
+
+  // Validate the workout date
+  const dateMatch =
+    /^(\d{4})-(\d{2})-(\d{2})$/.exec(details.date);
+
+  if (!dateMatch) {
+    Alert.alert('Invalid date', 'Use YYYY-MM-DD format.');
+    return;
+  }
+
+  const [, year, month, day] = dateMatch.map(Number);
+  const parsedDate = new Date(year, month - 1, day);
+
+  if (
+    parsedDate.getFullYear() !== year ||
+    parsedDate.getMonth() !== month - 1 ||
+    parsedDate.getDate() !== day
+  ) {
+    Alert.alert('Invalid date', 'Enter a real calendar date.');
+    return;
+  }
+
+  // Validate exercise details
+  const invalidExercise = details.exercises.some(
+    exercise =>
+      !exercise.name.trim() ||
+      !Number.isInteger(exercise.sets) ||
+      exercise.sets <= 0 ||
+      !Number.isInteger(exercise.reps) ||
+      exercise.reps <= 0 ||
+      !Number.isFinite(exercise.weight) ||
+      exercise.weight < 0
+  );
+
+  if (invalidExercise) {
+    Alert.alert(
+      'Check exercises',
+      'Enter valid sets, reps, and weight for each exercise.'
+    );
+    return;
+  }
+
+  // Save the complete workout
+  setWorkouts(previous => [
+    ...previous,
+    {
+      id: Date.now(),
+      name: workoutName.trim(),
+      minutes,
+      date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+      workoutType: details.workoutType,
+      intensity: details.intensity,
+      exercises: details.exercises,
+      notes: details.notes,
+    },
+  ]);
+
+  setWorkoutName('');
+  setDuration('');
+  setScreen('Home');
+}
     const button = (label: string, action: () => void) => <Pressable accessibilityRole="button"
       onPress={action} style ={styles.primaryButton}><Text style={styles.buttonText}>{label}</Text></Pressable>;
     if (fontError) {
@@ -338,40 +440,45 @@ if (profileError) {
            }
         />
       )}
-      
+   {/* PROGRESS SCREEN */}
+
+  
+{screen === 'Progress' && (
+  <ProgressScreen
+    totalXp={xp}
+    level={level}
+    xpIntoLevel={levelXp}
+    xpForNextLevel={nextLevelXp}
+    totalWorkouts={workouts.length}
+    weeklyWorkouts={weeklyWorkouts.length}
+    totalMinutes={workouts.reduce(
+      (sum, workout) => sum + workout.minutes,
+      0
+    )}
+    streak={streak}
+    workoutDates={workouts.map(workout => workout.date)}
+  />
+)}
+
+
 {/* LOG WORKOUT SCREEN */}
+
 {screen === 'Log' && (
-  <View style={styles.card}>
-    <Text style={styles.workoutTitle}>Log Workout</Text>
-
-    <Text style={styles.body}>Workout name</Text>
-    <TextInput
-      accessibilityLabel="Workout name"
-      placeholder="e.g. Running, Yoga, Weightlifting"
-      value={workoutName}
-      onChangeText={setWorkoutName}
-      style={styles.input}
-    />
-
-    <Text style={styles.body}>Duration (minutes)</Text>
-    <TextInput
-      accessibilityLabel="Workout duration"
-      placeholder="e.g. 30"
-      keyboardType="number-pad"
-      value={duration}
-      onChangeText={setDuration}
-      style={styles.input}
-    />
-
-    {button('Save Workout', saveWorkout)}
-    {button('Back to Home', () => setScreen('Home'))}
-  </View>
+  <LogWorkoutScreen
+    workoutName={workoutName}
+    duration={duration}
+    onWorkoutNameChange={setWorkoutName}
+    onDurationChange={setDuration}
+    onSave={saveWorkout}
+    onBack={() => setScreen('Home')}
+  />
 )}
 
 {/* WORKOUT HISTORY SCREEN */}
 {screen === 'Workouts' && (
   <View style={{ gap: 16 }}>
     <Text style={styles.workoutTitle}>My Workouts</Text>
+
     <Text style={styles.caption}>
       Your recent workout activity
     </Text>
@@ -381,9 +488,11 @@ if (profileError) {
         <Text style={styles.body}>
           You haven't logged any workouts yet.
         </Text>
+
         <Text style={styles.caption}>
           Start your fitness journey by logging your first workout!
         </Text>
+
         {button('Log Your First Workout', () => setScreen('Log'))}
       </View>
     ) : (
@@ -394,10 +503,66 @@ if (profileError) {
           <Text style={styles.body}>
             Duration: {workout.minutes} minutes
           </Text>
-
+ 
           <Text style={styles.caption}>
-            Date: {workout.date}
+            Date: {(() => {
+              const [year, month, day] = workout.date.split('-');
+              return `${month}/${day}/${year}`;
+            })()}
           </Text>
+
+          {workout.workoutType && (
+            <Text style={styles.body}>
+              Type: {workout.workoutType}
+            </Text>
+          )}
+
+          {workout.intensity && (
+            <Text style={styles.body}>
+              Intensity: {workout.intensity}
+            </Text>
+          )}
+
+          {workout.exercises && workout.exercises.length > 0 && (
+            <View style={{ gap: 8, marginTop: 8 }}>
+              <Text style={styles.title}>Exercises</Text>
+
+              {workout.exercises.map((exercise) => (
+                <View
+                  key={exercise.id}
+                  style={{
+                    backgroundColor: '#B7EFDE',
+                    padding: 12,
+                    borderRadius: 12,
+                    gap: 4,
+                  }}
+                >
+                  <Text style={styles.title}>
+                    {exercise.name}
+                  </Text>
+
+                  <Text style={styles.body}>
+                    {exercise.sets} sets × {exercise.reps} reps
+                  </Text>
+
+                  <Text style={styles.caption}>
+                    Weight: {exercise.weight} lb
+                  </Text>
+                </View>
+              ))}
+            </View> 
+          )}
+
+          {/* WORKOUT NOTES */}
+          {workout.notes && (
+            <View style={{ marginTop: 8, gap: 4 }}>
+              <Text style={styles.title}>Notes</Text>
+              <Text style={styles.body}>
+                {workout.notes}
+              </Text>
+            </View>
+          )}
+
         </View>
       ))
     )}
@@ -407,7 +572,6 @@ if (profileError) {
   </View>
 )}
 
-
 </ScrollView>
     <BottomNav
         selected={screen}
@@ -416,8 +580,6 @@ if (profileError) {
 </View>
  );
 }
-
-
 
 const styles = StyleSheet.create({
   input: { borderWidth: 1, borderColor: '#B5CCCC', borderRadius: 12, padding: 12, minHeight: 48, color: colors.text },
@@ -443,7 +605,7 @@ scroll: {
 content: {
   padding: 16,
   gap: 16,
-  paddingBottom: 24,
+  paddingBottom: 100,
 },
   header: { 
     flexDirection: 'row', 
