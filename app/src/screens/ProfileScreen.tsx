@@ -10,6 +10,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import ProfileCard from '../components/ProfileCard';
 import ProfileExtras from '../components/ProfileExtras';
+import AppearanceScreen from './AppearanceScreen';
+import { getProfileTheme } from '../theme/profileThemes';
 
 export type ProfileEdits = {
   displayName: string;
@@ -25,8 +27,11 @@ type ProfileScreenProps = {
   level: number;
   xpIntoLevel: number;
   xpForNextLevel: number;
-  onSaveProfile: (changes: ProfileEdits) => void;
+  themeId: string; 
+  onThemeSaved: (theme: string) => void; 
+  onSaveProfile: (changes: ProfileEdits) => Promise<void>;
 };
+
 
 const days = [
   { value: 'sun', label: 'Sun' },
@@ -53,8 +58,13 @@ export default function ProfileScreen({
   xpIntoLevel,
   xpForNextLevel,
   onSaveProfile,
+  themeId,
+  onThemeSaved, 
 }: ProfileScreenProps) {
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
 
   // Draft values are separate from the saved profile.
   const [draft, setDraft] = useState<ProfileEdits>({
@@ -70,6 +80,7 @@ export default function ProfileScreen({
       experience,
       plannedDays: [...plannedDays],
     });
+    setSaveError('');
     setEditing(true);
   }
 
@@ -82,31 +93,42 @@ export default function ProfileScreen({
     }));
   }
 
-  function saveChanges() {
-    if (!draft.displayName.trim()) {
-      Alert.alert(
-        'Display name required',
-        'Enter the name you want shown on your profile.'
-      );
-      return;
-    }
+  async function saveChanges() {
+  if (saving) return;
 
-    if (!draft.experience) {
-      Alert.alert(
-        'Choose an experience level',
-        'Select Beginner, Intermediate, or Advanced.'
-      );
-      return;
-    }
+  const name = draft.displayName.trim();
 
-    onSaveProfile({
+  if (!name || name.length > 60) {
+    setSaveError('Enter a display name containing 1–60 characters.');
+    return;
+  }
+
+  if (!draft.experience) {
+    setSaveError('Choose an experience level.');
+    return;
+  }
+
+  setSaving(true);
+  setSaveError('');
+
+  try {
+    await onSaveProfile({
       ...draft,
-      displayName: draft.displayName.trim(),
+      displayName: name,
       plannedDays: [...draft.plannedDays],
     });
 
     setEditing(false);
+  } catch (error) {
+    setSaveError(
+      error instanceof Error
+        ? error.message
+        : 'Unable to save your profile. Please try again.'
+    );
+  } finally {
+    setSaving(false);
   }
+}
 
   const initials = draft.displayName
     .trim()
@@ -117,16 +139,28 @@ export default function ProfileScreen({
     .join('')
     .toUpperCase();
 
+
+    if (appearanceOpen) {
+  return (
+    <AppearanceScreen
+      displayName={displayName}
+      onBack={() => setAppearanceOpen(false)}
+      onThemeSaved={onThemeSaved}
+    />
+  );
+}
+
   if (editing) {
     return (
       <View style={styles.screen}>
         <Pressable
-          accessibilityRole="button"
-          onPress={() => setEditing(false)}
-          style={styles.backButton}
-        >
-          <Text style={styles.backText}>← Profile</Text>
-        </Pressable>
+      accessibilityRole="button"
+      onPress={() => setEditing(false)}
+      disabled={saving}
+      style={styles.backButton}
+    >
+   <Text style={styles.backText}>← Profile</Text>
+   </Pressable>
 
         <View style={styles.heading}>
           <Text style={styles.eyebrow}>Personalize</Text>
@@ -134,7 +168,8 @@ export default function ProfileScreen({
         </View>
 
         <LinearGradient
-          colors={['#06C38B', '#006868']}
+          colors={getProfileTheme(themeId).colors}
+          locations={getProfileTheme(themeId).locations}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
           style={styles.editCard}
@@ -253,18 +288,28 @@ export default function ProfileScreen({
             </Text>
           </View>
 
-          <Pressable
-            accessibilityRole="button"
-            onPress={saveChanges}
-            style={({ pressed }) => [
-              styles.saveButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Text style={styles.buttonText}>
-              Save Changes
-            </Text>
-          </Pressable>
+          {!!saveError && (
+  <Text
+    accessibilityRole="alert"
+    style={{ color: '#FFFFFF', fontSize: 12 }}
+  >
+    {saveError}
+  </Text>
+)}
+
+<Pressable
+  accessibilityRole="button"
+  onPress={saveChanges}
+  disabled={saving}
+  style={({ pressed }) => [
+    styles.saveButton,
+    (pressed || saving) && styles.pressed,
+  ]}
+>
+  <Text style={styles.buttonText}>
+    {saving ? 'Saving…' : 'Save Changes'}
+  </Text>
+</Pressable>
         </LinearGradient>
       </View>
     );
@@ -277,16 +322,26 @@ export default function ProfileScreen({
         <Text style={styles.title}>Profile</Text>
       </View>
 
-      <ProfileCard
-        displayName={displayName}
-        rank={rank}
-        level={level}
-        xpIntoLevel={xpIntoLevel}
-        xpForNextLevel={xpForNextLevel}
-        onEditProfile={openEditor}
-      />
+       <ProfileCard
+           displayName={displayName}
+           rank={rank}
+           level={level}
+           xpIntoLevel={xpIntoLevel}
+           xpForNextLevel={xpForNextLevel}
+           onEditProfile={openEditor}
+           themeId={themeId}
+        />
 
-      <ProfileExtras /> 
+      <ProfileExtras
+        onOpen={destination => {
+          if (destination === 'Appearance') {
+             setAppearanceOpen(true);
+             return;
+         }
+
+    Alert.alert(destination, 'This section is coming soon.');
+  }}
+/>
     </View>
   );
 }

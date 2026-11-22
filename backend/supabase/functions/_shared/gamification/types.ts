@@ -29,6 +29,7 @@ export interface WorkoutInput {
 
 // a workout that's already saved in the database
 export interface WorkoutRecord {
+  id?: string; // the workouts table id (edit-workout uses it to leave out the one being changed)
   date: string;
   minutes: number;
   startedAt?: string | null;
@@ -37,7 +38,8 @@ export interface WorkoutRecord {
 }
 
 // one row in the xp_events table
-// reason is "workout", "streak_bonus", "challenge:<id>", "achievement:<id>" or "onboarding"
+// reason is "workout", "streak_bonus", "challenge:<id>", "goal:<type>", "achievement:<id>" or "onboarding".
+// the database also adds "workout_edited", "workout_deleted" and "level_floor" rows
 export interface XpEvent {
   amount: number;
   reason: string;

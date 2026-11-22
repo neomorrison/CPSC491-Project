@@ -1,7 +1,10 @@
 // Achievements are one time badges.
 // Each one has a "rule" saved as JSON in the achievements table, for example
 //   { "kind": "total_workouts", "count": 10 }
-// To add a new kind of achievement, add it to AchievementRule and add a case in isUnlocked.
+//
+// We used the Strategy pattern here: every kind of rule has its own check function in
+// RULE_CHECKS, and they all take the same arguments. To add a new kind of achievement,
+// add it to AchievementRule and add one function to RULE_CHECKS. Nothing else changes.
 
 import type { WorkoutRecord } from "./types.ts";
 
@@ -23,30 +26,35 @@ export interface AchievementStats {
   bestStreak: number;
 }
 
-export function isUnlocked(def: AchievementDef, stats: AchievementStats): boolean {
-  const rule = def.rule;
-  switch (rule.kind) {
-    case "total_workouts":
-      return stats.workouts.length >= rule.count;
+// deno-lint-ignore no-explicit-any
+type RuleCheck = (rule: any, stats: AchievementStats) => boolean;
 
-    case "streak":
-      return Math.max(stats.currentStreak, stats.bestStreak) >= rule.days;
+const RULE_CHECKS: Record<string, RuleCheck> = {
+  total_workouts: function (rule, stats) {
+    return stats.workouts.length >= rule.count;
+  },
 
-    case "early_bird": {
-      let earlyWorkouts = 0;
-      for (const w of stats.workouts) {
-        if (w.startedAt) {
-          const hour = Number(w.startedAt.slice(0, 2));
-          if (hour < rule.beforeHour) earlyWorkouts++;
-        }
+  streak: function (rule, stats) {
+    return Math.max(stats.currentStreak, stats.bestStreak) >= rule.days;
+  },
+
+  early_bird: function (rule, stats) {
+    let earlyWorkouts = 0;
+    for (const w of stats.workouts) {
+      if (w.startedAt) {
+        const hour = Number(w.startedAt.slice(0, 2));
+        if (hour < rule.beforeHour) earlyWorkouts++;
       }
-      return earlyWorkouts >= rule.count;
     }
+    return earlyWorkouts >= rule.count;
+  },
+};
 
-    default:
-      // unknown kind (maybe added to the database before the code), just don't unlock it
-      return false;
-  }
+export function isUnlocked(def: AchievementDef, stats: AchievementStats): boolean {
+  const check = RULE_CHECKS[def.rule.kind];
+  // unknown kind (maybe added to the database before the code), just don't unlock it
+  if (!check) return false;
+  return check(def.rule, stats);
 }
 
 // achievements the user just earned, not counting ones they already have

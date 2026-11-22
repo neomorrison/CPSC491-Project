@@ -9,7 +9,8 @@ import {
     View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient'; 
-import ProfileExtras from './ProfileExtras';
+import { getProfileTheme } from '../theme/profileThemes';
+
 
 type ProfileCardProps = {
     displayName: string;
@@ -25,8 +26,13 @@ type ProfileCardProps = {
     onEditProfile: () => void;
 
     // "Appearance" tab can supply the equipped avatar here 
-    avatar?: ReactNode; 
-}; 
+    avatar?: ReactNode;
+    themeId?: string;
+    preview?: boolean;
+    actionLabel?: string;
+    actionDisabled?: boolean;
+};
+
 
 export default function ProfileCard({
     displayName, 
@@ -36,11 +42,15 @@ export default function ProfileCard({
     xpForNextLevel, 
     onEditProfile, 
     avatar, 
+    themeId = 'default',
+    preview = false,
+    actionLabel = 'Edit Profile',
+    actionDisabled = false,
 }: ProfileCardProps) {
     const name = displayName.trim(); 
 
     const initials = name 
-      .split(/s+/)
+      .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
       .map(word => word.charAt(0))
@@ -62,20 +72,36 @@ export default function ProfileCard({
 
   return (
     <LinearGradient
-      colors={['#06C38B', '#006868']}
-      start={{ x: 0.5, y: 0 }}
-      end={{ x: 0.5, y: 1 }}
-      style={styles.card}
-    >
-    <View style={styles.avatarFrame}>
-        <View style={styles.avatarCircle}>
-            {avatar ?? (
-                <Text style={styles.initials}>
-                    {initials || '?'}
-                </Text>
-            )}
-        </View>
+  colors={getProfileTheme(themeId).colors}
+  start={{ x: 0.5, y: 0 }}
+  end={{ x: 0.5, y: 1 }}
+  style={styles.card}
+>
+  {preview && (
+    <View style={styles.previewHeader}>
+      <View style={styles.previewLabel}>
+        <Text style={styles.previewText}>Live Preview</Text>
+      </View>
+
+      <View style={styles.artPlaceholder} />
     </View>
+  )}
+
+  <View style={styles.avatarFrame}>
+    <View style={styles.avatarCircle}>
+      {avatar ?? (
+        <Text style={styles.initials}>
+          {initials || '?'}
+        </Text>
+      )}
+    </View>
+
+    {preview && (
+      <View style={styles.levelBadge}>
+        <Text style={styles.levelBadgeText}>{level}</Text>
+      </View>
+    )}
+  </View>
 
     <View style={styles.identity}>
         <Text style={styles.name}>
@@ -129,22 +155,68 @@ export default function ProfileCard({
     </View>
 
     <Pressable
-    accessibilityRole="button"
-    onPress={onEditProfile}
-    style={({ pressed }) => [
-        styles.editButton, 
-        pressed && styles.pressed,
-    ]}
-    >
-        <Text style={styles.editButtonText}>
-            Edit Profile
-        </Text>
-    </Pressable>
+  accessibilityRole="button"
+  onPress={onEditProfile}
+  disabled={actionDisabled}
+  style={({ pressed }) => [
+    styles.editButton,
+    (pressed || actionDisabled) && styles.pressed,
+  ]}
+>
+  <Text style={styles.editButtonText}>
+    {actionLabel}
+  </Text>
+</Pressable>
   </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  previewHeader: {
+  width: '100%',
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingHorizontal: 8,
+},
+
+previewLabel: {
+  backgroundColor: '#FFFFFF',
+  borderRadius: 20,
+  paddingHorizontal: 10,
+  paddingVertical: 6,
+},
+
+previewText: {
+  fontFamily: 'Inter_400Regular',
+  fontSize: 10,
+  color: '#006868',
+},
+
+artPlaceholder: {
+  width: 22,
+  height: 22,
+  borderRadius: 11,
+  backgroundColor: '#D9D9D9',
+},
+
+levelBadge: {
+  position: 'absolute',
+  right: -2,
+  bottom: -2,
+  width: 28,
+  height: 28,
+  borderRadius: 14,
+  backgroundColor: '#FFFFFF',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+levelBadgeText: {
+  fontFamily: 'Inter_600SemiBold',
+  fontSize: 12,
+  color: '#494949',
+},
   card: {
     width: '100%',
     borderRadius: 20,

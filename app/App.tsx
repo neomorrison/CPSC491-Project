@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar'; 
 import BottomNav from './src/components/BottomNav'; 
 import HomeScreen from './src/screens/HomeScreen';
@@ -7,6 +7,15 @@ import ScreenActions from './src/components/ScreenActions';
 import HomeSummary from './src/components/HomeSummary';
 import ProgressScreen from './src/screens/ProgressScreen';
 import LogWorkoutScreen from './src/screens/LogWorkoutScreen';
+import AuthGate from './src/components/AuthGate';
+import { supabase } from './src/lib/supabase';
+import {
+  fetchProfile,
+  updateProfile,
+} from './src/lib/profile';
+
+import type { ProfileChanges } from './src/lib/profile';
+
 // The font for the whole app 
 import { useFonts, Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold} from '@expo-google-fonts/inter';
 
@@ -55,7 +64,17 @@ function ProgressBar({ value, total }: { value: number; total:number }) {
     <View style ={[styles.fill, { width: `${percent}%` }]} /></View>; 
 
 }
+
 export default function App() {
+  return (
+    <AuthGate>
+      <MainApp />
+    </AuthGate>
+  );
+}
+
+
+function MainApp() {
     const { height: windowHeight } = useWindowDimensions(); 
     const [fontsLoaded, fontError] = useFonts({
        Inter_300Light,
@@ -69,7 +88,59 @@ export default function App() {
     const [screen, setScreen] = useState<
        'Home' | 'Workouts' | 'Log' | 'Progress' | 'Profile'
     >('Home');
-    const [profile, setProfile] = useState({displayName: '', weeklyTarget: '', experience: '', plannedDays: [] as string []});
+    const [profile, setProfile] = useState({
+      displayName: '', 
+      weeklyTarget: '', 
+      experience: '', 
+      plannedDays: [] as string [],
+      theme: 'default',
+    });
+    const [profileLoading, setProfileLoading] = useState(true);
+    const [profileError, setProfileError] = useState('');
+    const [profileReload, setProfileReload] = useState(0);
+
+    useEffect(() => {
+      let active = true;
+
+      setProfileLoading(true);
+      setProfileError('');
+
+      fetchProfile()
+        .then(savedProfile => {
+          if (!active) return;
+
+          setProfile(previous => ({
+            ...previous,
+            ...savedProfile,
+          }));
+        })
+        .catch(error => {
+          if (!active) return;
+
+         setProfileError(
+           error instanceof Error
+             ? error.message
+             : 'Unable to load your profile.'
+         );
+       })
+       .finally(() => {
+         if (active) setProfileLoading(false);
+       });
+
+       return () => {
+        active = false;
+      };
+    }, [profileReload]);
+
+async function saveProfile(changes: ProfileChanges) {
+  const savedProfile = await updateProfile(changes);
+
+  // Update the visible profile only after Supabase confirms saving.
+  setProfile(previous => ({
+    ...previous,
+    ...savedProfile,
+  }));
+}
     const [workouts, setWorkouts] = useState<Workout[]>([]);
     const [workoutName, setWorkoutName] = useState('');
     const [duration, setDuration] = useState('');
@@ -227,6 +298,36 @@ if (!fontsLoaded) {
     </View>
   );
 }
+
+if (profileLoading) {
+  return (
+    <View style={{ flex: 1, padding: 24, justifyContent: 'center' }}>
+      <Text>Loading your profile…</Text>
+    </View>
+  );
+}
+
+if (profileError) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        padding: 24,
+        justifyContent: 'center',
+        gap: 16,
+      }}
+    >
+      <Text>Unable to load your profile: {profileError}</Text>
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => setProfileReload(value => value + 1)}
+      >
+        <Text style={{ color: '#006868' }}>Try again</Text>
+      </Pressable>
+    </View>
+  );
+}
       return (
          <View 
               style={[
@@ -329,12 +430,14 @@ if (!fontsLoaded) {
            level={level}
            xpIntoLevel={levelXp}
            xpForNextLevel={nextLevelXp}
-           onSaveProfile={changes => {
-            setProfile(previous => ({
-              ...previous, 
-              ...changes, 
-           })); 
-          }}
+           onSaveProfile={saveProfile}
+           themeId={profile.theme}
+           onThemeSaved={theme =>
+             setProfile(previous => ({
+               ...previous,
+               theme,
+             }))
+           }
         />
       )}
    {/* PROGRESS SCREEN */}

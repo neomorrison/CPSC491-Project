@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  activeChallenges,
   challengeProgress,
   processWorkout,
   totalXpToReach,
@@ -30,7 +29,9 @@ function ctx(overrides: Partial<WorkoutContext> = {}): WorkoutContext {
     achievementDefs,
     unlockedAchievements: new Set(),
     challengeDefs,
-    completedChallenges: new Set(),
+    enrollments: [],
+    goals: [],
+    goalsDone: new Set(),
     ...overrides,
   };
 }
@@ -83,26 +84,32 @@ describe("processWorkout", () => {
     expect(r.unlocks).toEqual(["theme:ember"]);
   });
 
-  it("finishing a challenge pays out once", () => {
-    // 2026-11-02 rotation: check which daily challenge is active first.
-    const daily = activeChallenges(challengeDefs, "2026-11-02").find((c) => c.period === "daily")!;
-    expect(daily.id).toBe("squats_50");
-
+  it("finishing a joined challenge pays out once", () => {
+    // the user joined the squat challenge today
+    const enrollments = [{ challengeId: "squats_50", periodStart: "2026-11-02", startDate: "2026-11-02", endDate: "2026-11-02" }];
     const squats = { type: "strength" as const, date: "2026-11-02", minutes: 20, exercises: [{ name: "Squats", sets: 5, reps: 10 }] };
-    const first = processWorkout(squats, ctx({ unlockedAchievements: new Set(["first_workout"]) }));
+
+    const first = processWorkout(squats, ctx({ enrollments, unlockedAchievements: new Set(["first_workout"]) }));
     const done = first.challenges.find((c) => c.challengeId === "squats_50")!;
     expect(done).toMatchObject({ progress: 50, completed: true, justCompleted: true });
     expect(first.xpEvents).toContainEqual({ amount: 40, reason: "challenge:squats_50" });
 
+    // once it's completed it isn't an active enrollment anymore, so it can't pay again
     const again = processWorkout(
       squats,
       ctx({
         history: [{ date: "2026-11-02", minutes: 20, earnedXp: true, exercises: squats.exercises }],
         unlockedAchievements: new Set(["first_workout"]),
-        completedChallenges: new Set(["squats_50|2026-11-02"]),
+        enrollments: [],
       }),
     );
-    expect(again.xpEvents.some((e) => e.reason.startsWith("challenge:squats_50"))).toBe(false);
+    expect(again.xpEvents.some((e) => e.reason.startsWith("challenge:"))).toBe(false);
+  });
+
+  it("challenges the user didn't join don't count", () => {
+    const squats = { type: "strength" as const, date: "2026-11-02", minutes: 20, exercises: [{ name: "Squats", sets: 5, reps: 10 }] };
+    const r = processWorkout(squats, ctx({ unlockedAchievements: new Set(["first_workout"]) }));
+    expect(r.challenges).toEqual([]);
   });
 
   it("counts reps across sets and matches exercise names loosely", () => {

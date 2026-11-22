@@ -13,9 +13,11 @@ export const XP = {
   maxBackdateDays: 2, // you can log a workout up to 2 days late
 };
 
-// checks a workout sent by the app. returns a list of problems, empty means it's ok
+// checks a workout sent by the app. returns a list of problems, empty means it's ok.
+// originalDate is only passed when editing: keeping a workout on its old date is fine even
+// if that's more than 2 days ago, so people can fix typos in old workouts.
 // deno-lint-ignore no-explicit-any
-export function validateWorkout(input: any, today: string): string[] {
+export function validateWorkout(input: any, today: string, originalDate?: string): string[] {
   if (typeof input !== "object" || input === null) {
     return ["workout must be an object"];
   }
@@ -31,7 +33,7 @@ export function validateWorkout(input: any, today: string): string[] {
     const daysAgo = daysBetween(input.date, today);
     if (daysAgo < 0) {
       errors.push("date can't be in the future");
-    } else if (daysAgo > XP.maxBackdateDays) {
+    } else if (daysAgo > XP.maxBackdateDays && input.date !== originalDate) {
       errors.push("workouts can only be logged up to " + XP.maxBackdateDays + " days late");
     }
   }
