@@ -1,5 +1,7 @@
 # Personal Fitness Monitor
 
+## [LIVE DEMO LINK](https://neomorrison.github.io/CPSC491-Project/) ##
+
 Our CPSC 491 capstone project.
 
 Team: Gala Ferdaous, Stav (Vats) Sendrovitz, Jocelyn Mendoza, Neo Morrison
