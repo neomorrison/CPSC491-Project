@@ -88,5 +88,18 @@ export async function updateProfile(
 
   if (error) throw error;
 
+  // The first time someone saves their profile counts as finishing onboarding:
+  // the database gives the 25 XP onboarding bonus once, and the streak rules use their time zone.
+  const { error: onboardError } = await supabase
+    .from('profiles')
+    .update({
+      onboarded_at: new Date().toISOString(),
+      time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles',
+    })
+    .eq('id', userId)
+    .is('onboarded_at', null);
+
+  if (onboardError) throw onboardError;
+
   return toScreenProfile(data);
 }

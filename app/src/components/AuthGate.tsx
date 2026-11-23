@@ -24,6 +24,8 @@ export default function AuthGate({
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn');
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -112,6 +114,43 @@ export default function AuthGate({
     }
   }
 
+  // Sign up is a working outline that reuses the sign-in styles. Gala: style it however you like.
+  async function signUp() {
+    setErrorMessage('');
+    setNotice('');
+
+    if (!email.trim() || password.length < 6) {
+      setErrorMessage('Enter an email and a password of at least 6 characters.');
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) throw error;
+
+      // When "Confirm email" is on in Supabase there's no session until they click the link
+      if (!data.session) {
+        setNotice('Check your email for a link to confirm your account, then sign in.');
+        setMode('signIn');
+      }
+      setPassword('');
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Unable to create your account.'
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const submit = mode === 'signIn' ? signIn : signUp;
+
   if (checking) {
     return (
       <View style={styles.page}>
@@ -128,7 +167,9 @@ export default function AuthGate({
   return (
     <View style={styles.page}>
       <View style={styles.form}>
-        <Text style={styles.title}>Sign in to Ascend</Text>
+        <Text style={styles.title}>
+          {mode === 'signIn' ? 'Sign in to Ascend' : 'Create your account'}
+        </Text>
 
         <TextInput
           accessibilityLabel="Email"
@@ -148,9 +189,12 @@ export default function AuthGate({
           secureTextEntry
           value={password}
           onChangeText={setPassword}
+          onSubmitEditing={submit}
           editable={!busy}
           style={styles.input}
         />
+
+        {!!notice && <Text style={styles.notice}>{notice}</Text>}
 
         {!!errorMessage && (
           <Text accessibilityRole="alert" style={styles.error}>
@@ -160,12 +204,31 @@ export default function AuthGate({
 
         <Pressable
           accessibilityRole="button"
-          onPress={signIn}
+          onPress={submit}
           disabled={busy}
           style={[styles.button, busy && styles.disabled]}
         >
           <Text style={styles.buttonText}>
-            {busy ? 'Signing in…' : 'Sign in'}
+            {mode === 'signIn'
+              ? busy ? 'Signing in…' : 'Sign in'
+              : busy ? 'Creating account…' : 'Create account'}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            setMode(mode === 'signIn' ? 'signUp' : 'signIn');
+            setErrorMessage('');
+            setNotice('');
+          }}
+          disabled={busy}
+          style={styles.switchButton}
+        >
+          <Text style={styles.switchText}>
+            {mode === 'signIn'
+              ? 'New here? Create an account'
+              : 'Already have an account? Sign in'}
           </Text>
         </Pressable>
       </View>
@@ -228,5 +291,20 @@ const styles = StyleSheet.create({
 
   disabled: {
     opacity: 0.6,
+  },
+
+  notice: {
+    color: '#006868',
+  },
+
+  switchButton: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  switchText: {
+    color: '#006868',
+    fontWeight: '600',
   },
 });
