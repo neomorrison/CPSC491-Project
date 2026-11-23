@@ -19,6 +19,7 @@ export interface ExerciseInput {
 // what the app sends to log-workout
 export interface WorkoutInput {
   type: WorkoutType;
+  title?: string | null; // "Workout name" on the Log Workout screen, optional
   date: string; // YYYY-MM-DD in the user's time zone
   startedAt?: string | null; // "HH:MM", optional
   minutes: number;

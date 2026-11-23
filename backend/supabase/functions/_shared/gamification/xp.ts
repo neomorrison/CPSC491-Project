@@ -27,6 +27,10 @@ export function validateWorkout(input: any, today: string, originalDate?: string
     errors.push("type must be one of " + WORKOUT_TYPES.join(", "));
   }
 
+  if (input.title != null && (typeof input.title !== "string" || input.title.trim().length > 60)) {
+    errors.push("title must be under 60 characters");
+  }
+
   if (!isDate(input.date)) {
     errors.push("date must be YYYY-MM-DD");
   } else {
