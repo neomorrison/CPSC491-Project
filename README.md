@@ -1,6 +1,9 @@
 # Personal Fitness Monitor
 
-## [LIVE DEMO LINK](https://neomorrison.github.io/CPSC491-Project/) ##
+### [Live Demo Link](https://neomorrison.github.io/CPSC491-Project/) ###
+### Demo login ###
+testuser@gmail.com
+testuserpassword
 
 Our CPSC 491 capstone project.
 
