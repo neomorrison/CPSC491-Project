@@ -1,0 +1,100 @@
+erDiagram
+    PROFILES ||--|| STREAKS : has
+    PROFILES ||--o{ WORKOUTS : logs
+    WORKOUTS ||--o{ WORKOUT_EXERCISES : contains
+    PROFILES ||--o{ XP_EVENTS : earns
+    PROFILES ||--o{ HOME_WIDGETS : arranges
+    PROFILES ||--o{ USER_ACHIEVEMENTS : unlocks
+    ACHIEVEMENTS ||--o{ USER_ACHIEVEMENTS : "awarded as"
+    PROFILES ||--o{ USER_CHALLENGES : joins
+    CHALLENGES ||--o{ USER_CHALLENGES : "tracked in"
+    PROFILES ||--o{ WORKOUT_PLANS : follows
+    WORKOUT_PLANS ||--o{ PLAN_ITEMS : schedules
+
+    PROFILES {
+        uuid id PK
+        text display_name
+        text goal
+        text[] planned_days
+        text time_zone
+        text theme
+        timestamptz created_at
+    }
+    WORKOUTS {
+        uuid id PK
+        uuid user_id FK
+        text type
+        date workout_date
+        int minutes
+        text effort
+    }
+    WORKOUT_EXERCISES {
+        uuid id PK
+        uuid workout_id FK
+        text name
+        int sets
+        int reps
+        numeric weight_lb
+    }
+    XP_EVENTS {
+        uuid id PK
+        uuid user_id FK
+        uuid workout_id FK
+        int amount
+        text reason
+        timestamptz created_at
+    }
+    STREAKS {
+        uuid user_id PK
+        int current_streak
+        int best_streak
+        int freezes_left
+        date last_checked
+    }
+    ACHIEVEMENTS {
+        text id PK
+        text name
+        text rule
+        int xp_reward
+    }
+    USER_ACHIEVEMENTS {
+        uuid user_id FK
+        text achievement_id FK
+        timestamptz unlocked_at
+    }
+    CHALLENGES {
+        text id PK
+        text name
+        text period
+        int target
+        int xp_reward
+    }
+    USER_CHALLENGES {
+        uuid user_id FK
+        text challenge_id FK
+        int progress
+        date period_start
+        bool completed
+    }
+    HOME_WIDGETS {
+        uuid user_id FK
+        text widget
+        int position
+        bool visible
+    }
+    WORKOUT_PLANS {
+        uuid id PK
+        uuid user_id FK
+        date week_start
+        text created_by
+        text status
+        text note
+    }
+    PLAN_ITEMS {
+        uuid id PK
+        uuid plan_id FK
+        text day
+        text workout_type
+        int minutes
+        text details
+    }

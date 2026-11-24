@@ -1,0 +1,22 @@
+sequenceDiagram
+    autonumber
+    actor User
+    participant App as Mobile app
+    participant Fn as log-workout function
+    participant Engine as Gamification engine
+    participant DB as Database
+    User->>App: Fill in workout and tap "Save workout"
+    App->>Fn: Send workout (type, date, minutes, exercises)
+    Note over Fn: Check anti-abuse rules<br/>(date, length, daily cap)
+    Fn->>DB: Save workout and exercises
+    Fn->>Engine: Evaluate rewards for this workout
+    Engine->>DB: Read streak, challenges, achievements
+    Engine->>DB: Insert XP events (workout, streak bonus, challenge)
+    Engine->>DB: Update streak and challenge progress
+    Note over Engine: Check for new achievements<br/>and level up
+    Engine-->>Fn: XP gained, new streak, level up yes or no
+    Fn-->>App: Reward summary
+    App-->>User: Show "Workout saved" screen
+    opt Level went up
+        App-->>User: Show "Level up" screen with unlocked reward
+    end
