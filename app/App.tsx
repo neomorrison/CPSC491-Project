@@ -21,9 +21,10 @@ import {
   fetchProgress,
   fetchWorkouts,
   logWorkout,
+  nextFrameUnlockXp,
   WorkoutRejected,
 } from './src/lib/workouts';
-import type { Progress, SavedWorkout } from './src/lib/workouts';
+import type { Progress, SavedWorkout, WorkoutType } from './src/lib/workouts';
 
 // The font for the whole app 
 import { useFonts, Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold} from '@expo-google-fonts/inter';
@@ -201,7 +202,8 @@ async function saveProfile(changes: ProfileChanges) {
     const medals = progress?.medals ?? 0;
 
 async function saveWorkout(details: {
-  workoutType: 'Strength' | 'Cardio' | 'Mobility';
+  workoutType: WorkoutType;
+  outdoor: boolean;
   intensity: 'Light' | 'Moderate' | 'Hard';
   date: string;
   exercises: {
@@ -279,6 +281,7 @@ async function saveWorkout(details: {
       minutes,
       date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
       workoutType: details.workoutType,
+      outdoor: details.outdoor,
       intensity: details.intensity,
       exercises: details.exercises,
       notes: details.notes,
@@ -352,6 +355,14 @@ if (profileError) {
       >
         <Text style={{ color: '#006868' }}>Try again</Text>
       </Pressable>
+
+      {/* so a broken or deleted account can't get stuck here */}
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => supabase.auth.signOut()}
+      >
+        <Text style={{ color: '#B42318' }}>Log out</Text>
+      </Pressable>
     </View>
   );
 }
@@ -391,6 +402,7 @@ if (profileError) {
     displayName={profile.displayName}
     challengesCompleted={progress?.challengesCompleted ?? 0}
     medalsEarned={medals}
+    medalsTotal={progress?.medalsTotal}
     workoutsLoggedToday={
       workouts.filter(workout => workout.date === today).length
     }
@@ -420,6 +432,8 @@ if (profileError) {
         }
         streak={streak}
         bestStreak={progress?.bestStreak}
+        weeklyRewardXp={progress?.weeklyGoalXp}
+        frameUnlockXp={nextFrameUnlockXp(level)}
       />
     }
     onMedals={() => {
@@ -453,6 +467,8 @@ if (profileError) {
            setMedalsReturn('Profile');
            setScreen('Achievements');
           }}
+           latestMedals={progress?.latestMedals}
+           activeGoals={progress?.activeGoals}
            themeId={profile.theme}
            onThemeSaved={theme =>
              setProfile(previous => ({

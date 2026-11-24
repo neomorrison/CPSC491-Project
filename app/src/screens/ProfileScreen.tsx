@@ -14,6 +14,7 @@ import AppearanceScreen from './AppearanceScreen';
 import { getProfileTheme } from '../theme/profileThemes';
 import ProfileIdentity from '../components/ProfileIdentity';
 import { fetchAppearance } from '../lib/appearance';
+import { supabase } from '../lib/supabase';
 import type { AppearanceData } from '../lib/appearance';
 
 export type ProfileEdits = {
@@ -33,6 +34,8 @@ type ProfileScreenProps = {
   themeId: string; 
   onThemeSaved: (theme: string) => void; 
   onOpenAchievements: () => void;
+  latestMedals?: { id: string; name: string }[];
+  activeGoals?: number;
   onSaveProfile: (changes: ProfileEdits) => Promise<void>;
 };
 
@@ -65,6 +68,8 @@ export default function ProfileScreen({
   themeId,
   onThemeSaved, 
   onOpenAchievements,
+  latestMedals,
+  activeGoals,
 }: ProfileScreenProps) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -394,6 +399,8 @@ export default function ProfileScreen({
         />
 
       <ProfileExtras
+         medals={latestMedals}
+         activeGoals={activeGoals}
          onOpen={destination => {
            if (destination === 'Appearance') {
              setAppearanceOpen(true);
@@ -408,11 +415,32 @@ export default function ProfileScreen({
           Alert.alert(destination, 'This section is coming soon.');
         }}
       />
+
+      {/* AuthGate notices the sign out and goes back to the log in screen */}
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => supabase.auth.signOut()}
+        style={({ pressed }) => [styles.logOutButton, pressed && styles.pressed]}
+      >
+        <Text style={styles.logOutText}>Log out</Text>
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  logOutButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  logOutText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+    color: '#B42318',
+  },
+
   screen: {
     gap: 20,
   },

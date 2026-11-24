@@ -41,6 +41,10 @@ export type Progress = {
   bestStreak: number;
   weeklyTarget: number;
   medals: number;
+  medalsTotal: number;
+  latestMedals: { id: string; name: string }[]; // the 3 most recent, newest first
+  activeGoals: number;
+  weeklyGoalXp?: number; // XP for hitting the weekly goal, only if they set one
   challengesCompleted: number;
 };
 
@@ -114,6 +118,20 @@ async function signedInUserId(): Promise<string> {
   return data.user.id;
 }
 
+// XP needed for the next frame that unlocks by level (Orbit at 10, Aurora at 15).
+// Reaching level L takes 50 * L * (L - 1) XP. undefined once they have them all.
+const FRAME_LEVELS = [10, 15];
+
+export function nextFrameUnlockXp(level: number): number | undefined {
+  for (const frameLevel of FRAME_LEVELS) {
+    if (level < frameLevel) return 50 * frameLevel * (frameLevel - 1);
+  }
+  return undefined;
+}
+
+// the backend gives this much XP each week you hit a weekly goal (GOAL_XP.weekly in goals.ts)
+const WEEKLY_GOAL_XP = 30;
+
 export function rankFor(level: number): string {
   return level >= 20 ? 'Legend' :
     level >= 15 ? 'Athlete' :
@@ -126,7 +144,7 @@ export function rankFor(level: number): string {
 export async function fetchProgress(): Promise<Progress> {
   const userId = await signedInUserId();
 
-  const [progress, streak, profile, goal, medals, challenges] = await Promise.all([
+  const [progress, streak, profile, goal, medals, challenges, allMedals, latest, goals] = await Promise.all([
     supabase.from('user_progress').select('total_xp, level').eq('user_id', userId).maybeSingle(),
     supabase.from('streaks').select('current_streak, best_streak').eq('user_id', userId).maybeSingle(),
     supabase.from('profiles').select('planned_days').eq('id', userId).single(),
@@ -143,9 +161,21 @@ export async function fetchProgress(): Promise<Progress> {
       .select('challenge_id', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('status', 'completed'),
+    supabase.from('achievements').select('id', { count: 'exact', head: true }),
+    supabase
+      .from('user_achievements')
+      .select('achievement_id, achievements (name)')
+      .eq('user_id', userId)
+      .order('unlocked_at', { ascending: false })
+      .limit(3),
+    supabase
+      .from('goals')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('status', 'active'),
   ]);
 
-  for (const result of [progress, streak, profile, goal, medals, challenges]) {
+  for (const result of [progress, streak, profile, goal, medals, challenges, allMedals, latest, goals]) {
     if (result.error) throw result.error;
   }
 
@@ -166,6 +196,14 @@ export async function fetchProgress(): Promise<Progress> {
     // their "workouts per week" goal if they set one, otherwise how many days they planned
     weeklyTarget: goal.data?.target ?? plannedDays.length,
     medals: medals.count ?? 0,
+    medalsTotal: allMedals.count ?? 0,
+    latestMedals: (latest.data ?? []).map(row => {
+      // the joined achievement can come back as an object or a one item list
+      const achievement = Array.isArray(row.achievements) ? row.achievements[0] : row.achievements;
+      return { id: row.achievement_id, name: achievement?.name ?? 'Medal' };
+    }),
+    activeGoals: goals.count ?? 0,
+    weeklyGoalXp: goal.data ? WEEKLY_GOAL_XP : undefined,
     challengesCompleted: challenges.count ?? 0,
   };
 }
