@@ -5,13 +5,14 @@ import {
   ActivityIndicator,
   AppState,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
+
 import { supabase } from '../lib/supabase';
+import WelcomeScreen from '../screens/WelcomeScreen';
+import LoginScreen from '../screens/LoginScreen';
 
 export default function AuthGate({
   children,
@@ -20,10 +21,8 @@ export default function AuthGate({
 }) {
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [screen, setScreen] = useState<'welcome' | 'login'>('welcome');
+  const [sessionError, setSessionError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -44,20 +43,22 @@ export default function AuthGate({
       .then(({ data, error }) => {
         if (!active || authEventReceived) return;
 
-        if (error) setErrorMessage(error.message);
+        if (error) setSessionError(error.message);
+
         setSession(data.session);
         setChecking(false);
       })
       .catch(error => {
         if (!active || authEventReceived) return;
 
-        setErrorMessage(
-          error instanceof Error ? error.message : 'Session check failed.'
+        setSessionError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to restore your session.'
         );
         setChecking(false);
       });
 
-    // Refresh mobile sessions while the app is in the foreground.
     const appStateSubscription =
       Platform.OS !== 'web'
         ? AppState.addEventListener('change', state => {
@@ -84,91 +85,36 @@ export default function AuthGate({
     };
   }, []);
 
-  async function signIn() {
-    setErrorMessage('');
-
-    if (!email.trim() || !password) {
-      setErrorMessage('Enter your email and password.');
-      return;
-    }
-
-    setBusy(true);
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-
-      if (error) throw error;
-
-      setPassword('');
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : 'Unable to sign in.'
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
   if (checking) {
     return (
-      <View style={styles.page}>
-        <ActivityIndicator color="#006868" />
+      <View style={styles.loading}>
+        <ActivityIndicator color="#028A8A" />
         <Text>Checking your session…</Text>
       </View>
     );
   }
 
   if (session) {
-    return <View key={session.user.id} style={styles.app}>{children}</View>;
+    return (
+      <View key={session.user.id} style={styles.app}>
+        {children}
+      </View>
+    );
   }
 
   return (
-    <View style={styles.page}>
-      <View style={styles.form}>
-        <Text style={styles.title}>Sign in to Ascend</Text>
+    <View style={styles.app}>
+      {!!sessionError && (
+        <Text accessibilityRole="alert" style={styles.error}>
+          {sessionError}
+        </Text>
+      )}
 
-        <TextInput
-          accessibilityLabel="Email"
-          placeholder="Email"
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-          editable={!busy}
-          style={styles.input}
-        />
-
-        <TextInput
-          accessibilityLabel="Password"
-          placeholder="Password"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-          editable={!busy}
-          style={styles.input}
-        />
-
-        {!!errorMessage && (
-          <Text accessibilityRole="alert" style={styles.error}>
-            {errorMessage}
-          </Text>
-        )}
-
-        <Pressable
-          accessibilityRole="button"
-          onPress={signIn}
-          disabled={busy}
-          style={[styles.button, busy && styles.disabled]}
-        >
-          <Text style={styles.buttonText}>
-            {busy ? 'Signing in…' : 'Sign in'}
-          </Text>
-        </Pressable>
-      </View>
+      {screen === 'welcome' ? (
+        <WelcomeScreen onLogin={() => setScreen('login')} />
+      ) : (
+        <LoginScreen onSignUp={() => setScreen('welcome')} />
+      )}
     </View>
   );
 }
@@ -177,56 +123,16 @@ const styles = StyleSheet.create({
   app: {
     flex: 1,
   },
-
-  page: {
+  loading: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F1F1F1',
-    padding: 24,
+    justifyContent: 'center',
     gap: 12,
-  },
-
-  form: {
-    width: '100%',
-    maxWidth: 360,
-    gap: 14,
-  },
-
-  title: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#006868',
-  },
-
-  input: {
-    minHeight: 48,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#ABABAB',
-    borderRadius: 12,
     backgroundColor: '#FFFFFF',
   },
-
-  button: {
-    minHeight: 48,
-    borderRadius: 12,
-    backgroundColor: '#006868',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-
   error: {
+    padding: 12,
     color: '#B42318',
-  },
-
-  disabled: {
-    opacity: 0.6,
+    backgroundColor: '#FFF1F0',
   },
 });

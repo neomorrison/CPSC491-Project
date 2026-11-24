@@ -12,7 +12,7 @@ import Svg, { Path, Rect } from 'react-native-svg';
 import ProfileCard from '../components/ProfileCard';
 import {
   fetchAppearance,
-  saveAppearanceTheme,
+  saveAppearance,
 } from '../lib/appearance';
 import type { AppearanceData } from '../lib/appearance';
 import {
@@ -21,6 +21,17 @@ import {
   getProfileTheme,
 } from '../theme/profileThemes';
 import type { ThemeId } from '../theme/profileThemes';
+import ProfileIdentity from '../components/ProfileIdentity';
+import {
+  AVATARS,
+  FRAMES,
+  getAvatar,
+  getFrame,
+} from '../theme/profileRewards';
+import type {
+  AvatarId,
+  FrameId,
+} from '../theme/profileRewards';
 
 type Props = {
   displayName: string;
@@ -73,6 +84,16 @@ export default function AppearanceScreen({
   const [message, setMessage] = useState('');
   const [reload, setReload] = useState(0);
   const savingRef = useRef(false);
+  const [avatarId, setAvatarId] = useState<AvatarId>('initials');
+  const [frameId, setFrameId] = useState<FrameId>('minimal');
+
+  const hasChanges =
+     data !== null &&
+  (
+     selected !== data.theme ||
+     avatarId !== data.avatarId ||
+     frameId !== data.frameId
+  );  
 
   useEffect(() => {
     let active = true;
@@ -86,6 +107,8 @@ export default function AppearanceScreen({
 
         setData(result);
         setSelected(getProfileTheme(result.theme).id);
+        setAvatarId(getAvatar(result.avatarId).id);
+        setFrameId(getFrame(result.frameId).id);
       })
       .catch((caught: unknown) => {
         if (!active) return;
@@ -93,6 +116,10 @@ export default function AppearanceScreen({
         setError(
           caught instanceof Error
             ? caught.message
+            : typeof caught === 'object' &&
+               caught !== null &&
+               'message' in caught
+            ? String(caught.message)
             : 'Unable to load your appearance.'
         );
       })
@@ -106,7 +133,7 @@ export default function AppearanceScreen({
   }, [reload]);
 
   async function saveLook() {
-    if (!data || savingRef.current || selected === data.theme) {
+    if (!data || savingRef.current || !hasChanges) {
       return;
     }
 
@@ -124,13 +151,24 @@ export default function AppearanceScreen({
     setMessage('');
 
     try {
-      const theme = await saveAppearanceTheme(selected);
+      await saveAppearance({
+        theme: selected,
+          avatarId,
+          frameId,
+    });
 
-      setData(previous =>
-        previous ? { ...previous, theme } : previous
-      );
+       setData(previous =>
+  previous
+    ? {
+        ...previous,
+        theme: selected,
+        avatarId,
+        frameId,
+      }
+    : previous
+     );
 
-      onThemeSaved(theme);
+      onThemeSaved(selected);
       setMessage('Your look has been saved.');
     } catch (caught: unknown) {
       setError(
@@ -191,7 +229,7 @@ export default function AppearanceScreen({
             preview
             onEditProfile={saveLook}
             actionLabel={saving ? 'Saving…' : 'Save look'}
-            actionDisabled={saving || selected === data.theme}
+            actionDisabled={saving || !hasChanges}
           />
 
           {!!error && (

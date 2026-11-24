@@ -1,22 +1,35 @@
 import { supabase } from './supabase';
 import type { ThemeId } from '../theme/profileThemes';
+import {
+  AVATARS,
+  FRAMES,
+} from '../theme/profileRewards';
+import type {
+  AvatarId,
+  FrameId,
+} from '../theme/profileRewards';
 
 export type AppearanceData = {
   theme: string;
+  avatarId: string;
+  frameId: string;
   level: number;
   rank: string;
   xpIntoLevel: number;
   xpForNextLevel: number;
 };
 
+export type AppearanceSelection = {
+  theme: ThemeId;
+  avatarId: AvatarId;
+  frameId: FrameId;
+};
+
 async function signedInUserId(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
 
   if (error) throw error;
-
-  if (!data.user) {
-    throw new Error('Please sign in again.');
-  }
+  if (!data.user) throw new Error('Please sign in again.');
 
   return data.user.id;
 }
@@ -27,7 +40,7 @@ export async function fetchAppearance(): Promise<AppearanceData> {
   const [profileResult, progressResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('theme')
+      .select('theme, avatar_id, frame_id')
       .eq('id', userId)
       .single(),
 
@@ -54,6 +67,8 @@ export async function fetchAppearance(): Promise<AppearanceData> {
 
   return {
     theme: profileResult.data.theme ?? 'default',
+    avatarId: profileResult.data.avatar_id ?? 'initials',
+    frameId: profileResult.data.frame_id ?? 'minimal',
     level,
     rank:
       level >= 20 ? 'Legend' :
@@ -69,19 +84,29 @@ export async function fetchAppearance(): Promise<AppearanceData> {
   };
 }
 
-export async function saveAppearanceTheme(
-  theme: ThemeId
-): Promise<string> {
+export async function saveAppearance(
+  selection: AppearanceSelection
+): Promise<void> {
+  if (!AVATARS.some(item => item.id === selection.avatarId)) {
+    throw new Error('Choose a valid avatar.');
+  }
+
+  if (!FRAMES.some(item => item.id === selection.frameId)) {
+    throw new Error('Choose a valid frame.');
+  }
+
   const userId = await signedInUserId();
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('profiles')
-    .update({ theme })
+    .update({
+      theme: selection.theme,
+      avatar_id: selection.avatarId,
+      frame_id: selection.frameId,
+    })
     .eq('id', userId)
-    .select('theme')
+    .select('id')
     .single();
 
   if (error) throw error;
-
-  return data.theme;
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -12,6 +12,9 @@ import ProfileCard from '../components/ProfileCard';
 import ProfileExtras from '../components/ProfileExtras';
 import AppearanceScreen from './AppearanceScreen';
 import { getProfileTheme } from '../theme/profileThemes';
+import ProfileIdentity from '../components/ProfileIdentity';
+import { fetchAppearance } from '../lib/appearance';
+import type { AppearanceData } from '../lib/appearance';
 
 export type ProfileEdits = {
   displayName: string;
@@ -29,6 +32,7 @@ type ProfileScreenProps = {
   xpForNextLevel: number;
   themeId: string; 
   onThemeSaved: (theme: string) => void; 
+  onOpenAchievements: () => void;
   onSaveProfile: (changes: ProfileEdits) => Promise<void>;
 };
 
@@ -60,12 +64,42 @@ export default function ProfileScreen({
   onSaveProfile,
   themeId,
   onThemeSaved, 
+  onOpenAchievements,
 }: ProfileScreenProps) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [appearanceOpen, setAppearanceOpen] = useState(false);
 
+  const [equippedAppearance, setEquippedAppearance] =
+  useState<AppearanceData | null>(null);
+
+  const [appearanceRevision, setAppearanceRevision] = useState(0);
+  const [appearanceError, setAppearanceError] = useState('');
+
+    useEffect(() => {
+      let active = true;
+
+    setAppearanceError('');
+
+    fetchAppearance()
+      .then(result => {
+        if (active) setEquippedAppearance(result);
+    })
+    .catch((error: unknown) => {
+      if (!active) return;
+
+      setAppearanceError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to load your equipped appearance.'
+      );
+    });
+
+  return () => {
+    active = false;
+  };
+}, [appearanceRevision]);
   // Draft values are separate from the saved profile.
   const [draft, setDraft] = useState<ProfileEdits>({
     displayName,
@@ -145,7 +179,10 @@ export default function ProfileScreen({
     <AppearanceScreen
       displayName={displayName}
       onBack={() => setAppearanceOpen(false)}
-      onThemeSaved={onThemeSaved}
+      onThemeSaved={theme => {
+      onThemeSaved(theme);
+      setAppearanceRevision(value => value + 1);
+}}
     />
   );
 }
@@ -175,11 +212,18 @@ export default function ProfileScreen({
           style={styles.editCard}
         >
           <View style={styles.avatarRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.initials}>
-                {initials || '?'}
-              </Text>
-            </View>
+            {equippedAppearance ? (
+          <ProfileIdentity
+             displayName={draft.displayName}
+             avatarId={equippedAppearance.avatarId}
+             frameId={equippedAppearance.frameId}
+             size={76}
+        />
+) : (
+  <View style={styles.avatar}>
+    <Text style={styles.initials}>{initials || '?'}</Text>
+  </View>
+)}
 
             <Pressable
               accessibilityRole="button"
@@ -321,6 +365,13 @@ export default function ProfileScreen({
         <Text style={styles.eyebrow}>Your Space</Text>
         <Text style={styles.title}>Profile</Text>
       </View>
+      
+      {!!appearanceError && (
+        <Text accessibilityRole="alert" style={styles.backText}>
+           {appearanceError}
+        </Text>
+      )}
+
 
        <ProfileCard
            displayName={displayName}
@@ -330,18 +381,33 @@ export default function ProfileScreen({
            xpForNextLevel={xpForNextLevel}
            onEditProfile={openEditor}
            themeId={themeId}
+
+           avatar={
+             equippedAppearance ? (
+        <ProfileIdentity
+           displayName={displayName}
+           avatarId={equippedAppearance.avatarId}
+           frameId={equippedAppearance.frameId}
+    />
+  ) : undefined
+}
         />
 
       <ProfileExtras
-        onOpen={destination => {
-          if (destination === 'Appearance') {
+         onOpen={destination => {
+           if (destination === 'Appearance') {
              setAppearanceOpen(true);
              return;
-         }
+           }
 
-    Alert.alert(destination, 'This section is coming soon.');
-  }}
-/>
+          if (destination === 'Achievements') {
+             onOpenAchievements();
+             return;
+          }
+
+          Alert.alert(destination, 'This section is coming soon.');
+        }}
+      />
     </View>
   );
 }

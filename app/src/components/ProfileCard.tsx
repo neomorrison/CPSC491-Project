@@ -73,6 +73,7 @@ export default function ProfileCard({
   return (
     <LinearGradient
   colors={getProfileTheme(themeId).colors}
+  locations={getProfileTheme(themeId).locations}
   start={{ x: 0.5, y: 0 }}
   end={{ x: 0.5, y: 1 }}
   style={styles.card}

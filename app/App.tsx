@@ -7,6 +7,8 @@ import ScreenActions from './src/components/ScreenActions';
 import HomeSummary from './src/components/HomeSummary';
 import ProgressScreen from './src/screens/ProgressScreen';
 import LogWorkoutScreen from './src/screens/LogWorkoutScreen';
+import ChallengesScreen from './src/screens/ChallengesScreen';
+import AchievementsScreen from './src/screens/AchievementsScreen';
 import AuthGate from './src/components/AuthGate';
 import { supabase } from './src/lib/supabase';
 import {
@@ -85,9 +87,19 @@ function MainApp() {
        Inter_800ExtraBold,
     });
     // Bottom Nav button 
-    const [screen, setScreen] = useState<
-       'Home' | 'Workouts' | 'Log' | 'Progress' | 'Profile'
-    >('Home');
+   const [screen, setScreen] = useState<
+  | 'Home'
+  | 'Workouts'
+  | 'Log'
+  | 'Progress'
+  | 'Profile'
+  | 'Challenges'
+  | 'Achievements'
+>('Home');
+
+const [medalsReturn, setMedalsReturn] = useState<
+  'Home' | 'Profile' | 'Challenges'
+>('Profile');
     const [profile, setProfile] = useState({
       displayName: '', 
       weeklyTarget: '', 
@@ -344,12 +356,7 @@ if (profileError) {
           {screen !== 'Home' && (
     <ScreenActions
       onNavigate={destination => setScreen(destination)}
-      onChallenges={() =>
-        Alert.alert(
-          'Challenges',
-          'The Challenges screen will be connected here.'
-        )
-      }
+      onChallenges={() => setScreen('Challenges')}
     />
    )}
    </View>
@@ -375,20 +382,12 @@ if (profileError) {
     actions={
       <ScreenActions
         onNavigate={destination => setScreen(destination)}
-        onChallenges={() =>
-          Alert.alert(
-            'Challenges',
-            'The Challenges screen will be connected here.'
-          )
-        }
+        onChallenges={() => setScreen('Challenges')}
       />
     }
-    onChallenges={() =>
-      Alert.alert(
-        'Challenges',
-        'The Challenges screen will be connected here.'
-      )
-    }
+    onChallenges={() => setScreen('Challenges')}
+
+
     summary={
        <HomeSummary
           weeklyWorkouts={weeklyWorkouts.length}
@@ -407,7 +406,10 @@ if (profileError) {
         streak={streak}
       />
     }
-    onMedals={() => setScreen('Profile')}
+    onMedals={() => {
+       setMedalsReturn('Home');
+       setScreen('Achievements');
+    }}
     onProgress={() => setScreen('Progress')}
     onOpenWorkout={() => setScreen('Workouts')}
   />
@@ -431,6 +433,10 @@ if (profileError) {
            xpIntoLevel={levelXp}
            xpForNextLevel={nextLevelXp}
            onSaveProfile={saveProfile}
+           onOpenAchievements={() => {
+           setMedalsReturn('Profile');
+           setScreen('Achievements');
+          }}
            themeId={profile.theme}
            onThemeSaved={theme =>
              setProfile(previous => ({
@@ -440,8 +446,26 @@ if (profileError) {
            }
         />
       )}
-   {/* PROGRESS SCREEN */}
 
+{screen === 'Challenges' && (
+  <ChallengesScreen
+    onBack={() => setScreen('Home')}
+    onViewMedals={() => {
+      setMedalsReturn('Challenges');
+      setScreen('Achievements');
+    }}
+  />
+)}
+
+{screen === 'Achievements' && (
+  <AchievementsScreen
+    onBack={() => setScreen(medalsReturn)}
+  />
+)}
+
+
+
+   {/* PROGRESS SCREEN */}
   
 {screen === 'Progress' && (
   <ProgressScreen
@@ -574,9 +598,15 @@ if (profileError) {
 
 </ScrollView>
     <BottomNav
-        selected={screen}
-        onSelect={setScreen}
-    />
+  selected={
+    screen === 'Challenges'
+      ? 'Home'
+      : screen === 'Achievements'
+        ? 'Profile'
+        : screen
+  }
+  onSelect={setScreen}
+/>
 </View>
  );
 }
