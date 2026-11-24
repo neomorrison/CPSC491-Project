@@ -147,6 +147,7 @@ describe("log-workout", () => {
     expect(res.status).toBe(200);
     expect(saved).toEqual({
       type: "cardio",
+      title: null,
       date: "2026-11-02",
       startedAt: null,
       minutes: 30,
@@ -154,6 +155,23 @@ describe("log-workout", () => {
       notes: null,
       exercises: [{ name: "Squats", sets: 3, reps: 10, seconds: null, weightLb: null }],
     });
+  });
+
+  it("saves the workout title, trimmed, and rejects one over 60 characters", async () => {
+    let saved: { title?: string | null } | null = null;
+    const { deps } = makeDeps({
+      saveWorkout: async (_u, w) => {
+        saved = w;
+        return { ok: true, workoutId: "workout-1" };
+      },
+    });
+    const res = await handleLogWorkout(post({ ...workout, title: "  Morning run " }), deps);
+    expect(res.status).toBe(200);
+    expect(saved!.title).toBe("Morning run");
+
+    const tooLong = await handleLogWorkout(post({ ...workout, title: "x".repeat(61) }), deps);
+    expect(tooLong.status).toBe(422);
+    expect((await tooLong.json()).details.join()).toMatch(/title/);
   });
 
   it("pays weekly goal XP and returns goal progress", async () => {

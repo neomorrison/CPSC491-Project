@@ -139,6 +139,7 @@ Called by the app with the user's login token.
 ```json
 {
   "type": "strength",
+  "title": "Leg day",
   "date": "2026-11-02",
   "minutes": 35,
   "startedAt": "07:30",
@@ -147,7 +148,7 @@ Called by the app with the user's login token.
 }
 ```
 
-`type` can be `strength`, `cardio`, `yoga`, `sports`, or `other`. `date` is the user's local date
+`type` can be `strength`, `cardio`, `yoga`, `sports`, or `other`. `title` is optional (the "Workout name" field, up to 60 characters). `date` is the user's local date
 and can be up to 2 days ago.
 
 | Status | Meaning |

@@ -61,6 +61,7 @@ export function cleanWorkout(input: WorkoutInput): WorkoutInput {
   }
   return {
     type: input.type,
+    title: input.title?.trim() || null,
     date: input.date,
     startedAt: input.startedAt ?? null,
     minutes: input.minutes,
