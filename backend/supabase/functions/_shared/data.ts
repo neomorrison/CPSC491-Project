@@ -30,7 +30,7 @@ export async function loadProfile(db: SupabaseClient, userId: string): Promise<P
 export async function loadWorkouts(db: SupabaseClient, userId: string): Promise<WorkoutRecord[]> {
   const { data, error } = await db
     .from("workouts")
-    .select("id, workout_date, minutes, started_at, earned_xp, workout_exercises(name, sets, reps, seconds, weight_lb)")
+    .select("id, type, outdoor, workout_date, minutes, started_at, earned_xp, workout_exercises(name, sets, reps, seconds, weight_lb)")
     .eq("user_id", userId)
     .order("workout_date");
   if (error || !data) throw new Error("could not load workouts: " + error?.message);
@@ -50,6 +50,8 @@ export async function loadWorkouts(db: SupabaseClient, userId: string): Promise<
     }
     workouts.push({
       id: row.id,
+      type: row.type,
+      outdoor: row.outdoor,
       date: row.workout_date,
       minutes: row.minutes,
       startedAt: row.started_at,

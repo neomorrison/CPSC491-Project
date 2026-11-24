@@ -46,6 +46,10 @@ export function validateWorkout(input: any, today: string, originalDate?: string
     errors.push("minutes must be a whole number from 1 to 600");
   }
 
+  if (input.outdoor != null && typeof input.outdoor !== "boolean") {
+    errors.push("outdoor must be true or false");
+  }
+
   if (input.startedAt != null && !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.startedAt)) {
     errors.push("startedAt must be HH:MM");
   }

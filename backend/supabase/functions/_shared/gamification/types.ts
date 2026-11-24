@@ -2,8 +2,31 @@
 
 import type { Weekday } from "./dates.ts";
 
-export type WorkoutType = "strength" | "cardio" | "yoga" | "sports" | "other";
-export const WORKOUT_TYPES: string[] = ["strength", "cardio", "yoga", "sports", "other"];
+export type WorkoutType =
+  | "strength"
+  | "cardio"
+  | "walking"
+  | "yoga"
+  | "pilates"
+  | "mobility"
+  | "hiking"
+  | "swimming"
+  | "climbing"
+  | "sports"
+  | "other";
+export const WORKOUT_TYPES: string[] = [
+  "strength",
+  "cardio",
+  "walking",
+  "yoga",
+  "pilates",
+  "mobility",
+  "hiking",
+  "swimming",
+  "climbing",
+  "sports",
+  "other",
+];
 
 export type Effort = "easy" | "just_right" | "tough";
 export const EFFORTS: string[] = ["easy", "just_right", "tough"];
@@ -23,6 +46,7 @@ export interface WorkoutInput {
   date: string; // YYYY-MM-DD in the user's time zone
   startedAt?: string | null; // "HH:MM", optional
   minutes: number;
+  outdoor?: boolean; // the "Outdoors" toggle, optional (false if left out)
   effort?: Effort | null;
   notes?: string | null;
   exercises?: ExerciseInput[];
@@ -31,6 +55,8 @@ export interface WorkoutInput {
 // a workout that's already saved in the database
 export interface WorkoutRecord {
   id?: string; // the workouts table id (edit-workout uses it to leave out the one being changed)
+  type?: string; // needed for the medals about workout types (Finding Balance, Go-Getter...)
+  outdoor?: boolean;
   date: string;
   minutes: number;
   startedAt?: string | null;

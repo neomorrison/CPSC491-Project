@@ -143,12 +143,15 @@ Called by the app with the user's login token.
   "date": "2026-11-02",
   "minutes": 35,
   "startedAt": "07:30",
+  "outdoor": false,
   "effort": "just_right",
   "exercises": [{ "name": "Squats", "sets": 3, "reps": 10, "weightLb": 95 }]
 }
 ```
 
-`type` can be `strength`, `cardio`, `yoga`, `sports`, or `other`. `title` is optional (the "Workout name" field, up to 60 characters). `date` is the user's local date
+`type` can be `strength`, `cardio`, `walking`, `yoga`, `pilates`, `mobility`, `hiking`, `swimming`,
+`climbing`, `sports`, or `other`. `outdoor` is optional (the "Outdoors" toggle, hikes always count
+as outdoor). `title` is optional (the "Workout name" field, up to 60 characters). `date` is the user's local date
 and can be up to 2 days ago.
 
 | Status | Meaning |
@@ -280,7 +283,7 @@ only gets their own rows.
 | Level and total XP | `user_progress` view |
 | Streak, freezes, "at risk" | `streaks` |
 | Workout history | `workouts` with `workout_exercises` |
-| Badges | `achievements` and `user_achievements` |
+| Medals and challenge medals | `achievements` (`category` is `medal` or `challenge`) and `user_achievements` |
 | Challenges (Available / Active / Completed) | `challenges` (filter by `min_level`) and `user_challenges` (`status`) |
 | Goals and their progress | `goal_progress` view |
 | Home screen layout | `home_widgets` (the app can edit this) |

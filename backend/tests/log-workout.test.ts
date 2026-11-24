@@ -83,7 +83,7 @@ describe("log-workout", () => {
 
   it("answers 422 with the reasons for a bad workout", async () => {
     const { deps, saves } = makeDeps();
-    const res = await handleLogWorkout(post({ type: "swimming", date: "2026-11-02", minutes: 0 }), deps);
+    const res = await handleLogWorkout(post({ type: "skydiving", date: "2026-11-02", minutes: 0 }), deps);
     expect(res.status).toBe(422);
     const body = await res.json();
     expect(body.details.length).toBe(2);
@@ -151,6 +151,7 @@ describe("log-workout", () => {
       date: "2026-11-02",
       startedAt: null,
       minutes: 30,
+      outdoor: false,
       effort: null,
       notes: null,
       exercises: [{ name: "Squats", sets: 3, reps: 10, seconds: null, weightLb: null }],
