@@ -65,6 +65,7 @@ export function cleanWorkout(input: WorkoutInput): WorkoutInput {
     date: input.date,
     startedAt: input.startedAt ?? null,
     minutes: input.minutes,
+    outdoor: input.outdoor === true,
     effort: input.effort ?? null,
     notes: input.notes ?? null,
     exercises: exercises,

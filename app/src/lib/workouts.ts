@@ -5,7 +5,18 @@ import { supabase } from './supabase';
 // The app never calculates rewards itself: a new workout goes to the log-workout
 // function, which runs the game rules and saves everything (see backend/README.md).
 
-export type WorkoutType = 'Strength' | 'Cardio' | 'Mobility';
+export type WorkoutType =
+  | 'Strength'
+  | 'Cardio'
+  | 'Walking'
+  | 'Yoga'
+  | 'Pilates'
+  | 'Mobility'
+  | 'Hiking'
+  | 'Swimming'
+  | 'Climbing'
+  | 'Sports'
+  | 'Other';
 export type Intensity = 'Light' | 'Moderate' | 'Hard';
 
 export type SavedWorkout = {
@@ -14,6 +25,7 @@ export type SavedWorkout = {
   minutes: number;
   date: string; // YYYY-MM-DD
   workoutType?: WorkoutType;
+  outdoor?: boolean;
   intensity?: Intensity;
   exercises?: { id: number; name: string; sets: number; reps: number; weight: number }[];
   notes?: string;
@@ -37,6 +49,7 @@ export type NewWorkout = {
   minutes: number;
   date: string; // YYYY-MM-DD
   workoutType: WorkoutType;
+  outdoor?: boolean; // the "Outdoors" toggle. Hikes count as outdoor either way
   intensity: Intensity;
   exercises: { name: string; sets: number; reps: number; weight: number }[];
   notes: string;
@@ -62,8 +75,33 @@ export class WorkoutRejected extends Error {
 }
 
 // Screen values <-> database values
-const TYPE_TO_DB: Record<WorkoutType, string> = { Strength: 'strength', Cardio: 'cardio', Mobility: 'yoga' };
-const TYPE_FROM_DB: Record<string, WorkoutType> = { strength: 'Strength', cardio: 'Cardio', yoga: 'Mobility' };
+// (the medals use these types, for example Finding Balance needs yoga or pilates)
+const TYPE_TO_DB: Record<WorkoutType, string> = {
+  Strength: 'strength',
+  Cardio: 'cardio',
+  Walking: 'walking',
+  Yoga: 'yoga',
+  Pilates: 'pilates',
+  Mobility: 'mobility',
+  Hiking: 'hiking',
+  Swimming: 'swimming',
+  Climbing: 'climbing',
+  Sports: 'sports',
+  Other: 'other',
+};
+const TYPE_FROM_DB: Record<string, WorkoutType> = {
+  strength: 'Strength',
+  cardio: 'Cardio',
+  walking: 'Walking',
+  yoga: 'Yoga',
+  pilates: 'Pilates',
+  mobility: 'Mobility',
+  hiking: 'Hiking',
+  swimming: 'Swimming',
+  climbing: 'Climbing',
+  sports: 'Sports',
+  other: 'Other',
+};
 const INTENSITY_TO_DB: Record<Intensity, string> = { Light: 'easy', Moderate: 'just_right', Hard: 'tough' };
 const INTENSITY_FROM_DB: Record<string, Intensity> = { easy: 'Light', just_right: 'Moderate', tough: 'Hard' };
 
@@ -153,6 +191,7 @@ export async function fetchWorkouts(): Promise<SavedWorkout[]> {
     minutes: row.minutes,
     date: row.workout_date,
     workoutType: TYPE_FROM_DB[row.type],
+    outdoor: row.outdoor ?? false,
     intensity: row.effort ? INTENSITY_FROM_DB[row.effort] : undefined,
     notes: row.notes ?? undefined,
     exercises: [...(row.workout_exercises ?? [])]
@@ -175,6 +214,7 @@ export async function logWorkout(workout: NewWorkout): Promise<WorkoutReward> {
       title: workout.title.trim() || null,
       date: workout.date,
       minutes: workout.minutes,
+      outdoor: workout.outdoor === true,
       effort: INTENSITY_TO_DB[workout.intensity],
       notes: workout.notes.trim() || null,
       exercises: workout.exercises.map(exercise => ({

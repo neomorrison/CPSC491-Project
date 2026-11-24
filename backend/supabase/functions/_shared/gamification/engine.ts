@@ -53,6 +53,8 @@ export function processWorkout(workout: WorkoutInput, ctx: WorkoutContext): Work
   const earned = earnsXp(workout.minutes, xpWorkoutsThatDay);
 
   const newRecord: WorkoutRecord = {
+    type: workout.type,
+    outdoor: workout.outdoor === true,
     date: workout.date,
     minutes: workout.minutes,
     startedAt: workout.startedAt ?? null,
@@ -77,7 +79,12 @@ export function processWorkout(workout: WorkoutInput, ctx: WorkoutContext): Work
   // achievements
   const unlocked = newAchievements(
     ctx.achievementDefs,
-    { workouts: allWorkouts, currentStreak: rewards.streak.current, bestStreak: rewards.streak.best },
+    {
+      workouts: allWorkouts,
+      currentStreak: rewards.streak.current,
+      bestStreak: rewards.streak.best,
+      plannedDays: ctx.profile.plannedDays,
+    },
     ctx.unlockedAchievements,
   );
   for (const a of unlocked) {
