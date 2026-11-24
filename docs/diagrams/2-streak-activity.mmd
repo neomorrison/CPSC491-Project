@@ -1,0 +1,24 @@
+flowchart TD
+    Start(["Daily check runs at midnight<br/>in the user's time zone"]) --> Planned{"Was today a<br/>planned workout day?"}
+    Planned -- No --> Extra{"Did the user<br/>work out anyway?"}
+    Extra -- Yes --> Inc["Streak + 1"]
+    Extra -- No --> Same["No change<br/>(rest days never break a streak)"]
+    Planned -- Yes --> Logged{"Workout logged<br/>today?"}
+    Logged -- Yes --> Inc
+    Logged -- No --> Grace["Mark day as missed,<br/>grace day starts"]
+    Grace --> MadeUp{"Workout logged by the<br/>end of the next day?"}
+    MadeUp -- Yes --> Inc
+    MadeUp -- No --> Freeze{"Streak freeze left<br/>this week?"}
+    Freeze -- Yes --> UseFreeze["Use freeze,<br/>streak stays the same"]
+    Freeze -- No --> Reset["Streak resets to 0"]
+    Inc --> Best{"Streak higher than<br/>best streak?"}
+    Best -- Yes --> SaveBest["Save new best streak"]
+    Best -- No --> Done(["Done"])
+    SaveBest --> Done
+    Same --> Done
+    UseFreeze --> Done
+    Reset --> Keep["Best streak is kept"] --> Done
+    classDef good fill:#e5f6ef,stroke:#18a874,color:#17171c;
+    classDef bad fill:#fde8e8,stroke:#d64545,color:#17171c;
+    class Inc,SaveBest good;
+    class Reset bad;

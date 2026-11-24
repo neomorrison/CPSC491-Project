@@ -14,6 +14,12 @@ import { supabase } from '../lib/supabase';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import LoginScreen from '../screens/LoginScreen';
 
+/**
+ * Controls access to the signed-in app.
+ *
+ * The signup/login screens handle form fields and authentication requests.
+ * This component watches Supabase's session and displays the correct screen.
+ */
 export default function AuthGate({
   children,
 }: {
@@ -21,29 +27,41 @@ export default function AuthGate({
 }) {
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
+
+  // Used only when signed out to switch between signup and login.
   const [screen, setScreen] = useState<'welcome' | 'login'>('welcome');
+
+  // Session-restoration errors are separate from errors in the login form.
   const [sessionError, setSessionError] = useState('');
 
   useEffect(() => {
+    // Prevent asynchronous callbacks from updating an unmounted component.
     let active = true;
+
+    // A newer auth event should take priority over the initial session lookup.
     let authEventReceived = false;
 
+    // Subscribe before checking storage so we don't miss a session change.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       authEventReceived = true;
 
-      if (active) {
-        setSession(nextSession);
-        setChecking(false);
-      }
+      if (!active) return;
+
+      setSession(nextSession);
+      setSessionError('');
+      setChecking(false);
     });
 
+    // Restore a previously saved session when the app first opens.
     supabase.auth.getSession()
       .then(({ data, error }) => {
         if (!active || authEventReceived) return;
 
-        if (error) setSessionError(error.message);
+        if (error) {
+          setSessionError(error.message);
+        }
 
         setSession(data.session);
         setChecking(false);
@@ -56,9 +74,13 @@ export default function AuthGate({
             ? error.message
             : 'Unable to restore your session.'
         );
+
+        // Allow the user to access login even if session restoration fails.
         setChecking(false);
       });
 
+    // Native apps refresh their session while in the foreground.
+    // The web client manages its own browser refresh behavior.
     const appStateSubscription =
       Platform.OS !== 'web'
         ? AppState.addEventListener('change', state => {
@@ -74,6 +96,7 @@ export default function AuthGate({
       supabase.auth.startAutoRefresh();
     }
 
+    // Remove listeners when AuthGate unmounts to avoid duplicate callbacks.
     return () => {
       active = false;
       subscription.unsubscribe();
@@ -85,6 +108,7 @@ export default function AuthGate({
     };
   }, []);
 
+  // Wait for the initial session check to avoid briefly flashing signup.
   if (checking) {
     return (
       <View style={styles.loading}>
@@ -94,6 +118,8 @@ export default function AuthGate({
     );
   }
 
+  // A valid session opens MainApp, passed into AuthGate as children.
+  // The user ID key resets the app's component state if accounts change.
   if (session) {
     return (
       <View key={session.user.id} style={styles.app}>
@@ -102,6 +128,8 @@ export default function AuthGate({
     );
   }
 
+  // Signed-out users see the shared, styled signup/login screens.
+  // Successful authentication updates the session through the listener above.
   return (
     <View style={styles.app}>
       {!!sessionError && (
@@ -123,6 +151,7 @@ const styles = StyleSheet.create({
   app: {
     flex: 1,
   },
+
   loading: {
     flex: 1,
     alignItems: 'center',
@@ -130,6 +159,7 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: '#FFFFFF',
   },
+
   error: {
     padding: 12,
     color: '#B42318',

@@ -39,7 +39,9 @@ If everyone's good with this, we should update the Objectives section so it matc
 - **Design:** Figma
 - **Tracking work:** GitHub Issues and a Projects board
 
-## How the repo will be set up
+## How the repo is set up
+
+The proposal is our main planning doc and lives in Google Docs: [Project Proposal](https://docs.google.com/document/d/1HJXOKV5scL9rVFRxq19RkPYZJ-W7PXG-8-Yb3blXhkk/edit). The repo only holds what we build the app from.
 
 ```
 README.md      this file: project overview
@@ -48,6 +50,8 @@ backend/       Supabase tables, server functions, and the gamification engine
 mcp-server/    the AI assistant connection
 docs/          stuff we build from
 ```
+
+Each folder has a short README. Once a folder has code in it, its README should say how to run it.
 
 ## Who's doing what
 
@@ -110,6 +114,8 @@ docs/          stuff we build from
 Also, Neo needs to be added to the group members on the proposal.
 
 ## Rough timeline
+
+We'll match these to the real due dates once we check the syllabus.
 
 - **Week 1:** agree on scope, vote on the stack, set up the repo and project board
 - **Weeks 2 to 3:** personas, storyboards, wireframes, database and logins working
