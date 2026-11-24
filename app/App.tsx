@@ -15,6 +15,13 @@ import {
 } from './src/lib/profile';
 
 import type { ProfileChanges } from './src/lib/profile';
+import {
+  fetchProgress,
+  fetchWorkouts,
+  logWorkout,
+  WorkoutRejected,
+} from './src/lib/workouts';
+import type { Progress, SavedWorkout } from './src/lib/workouts';
 
 // The font for the whole app 
 import { useFonts, Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold} from '@expo-google-fonts/inter';
@@ -32,24 +39,14 @@ const colors = {
 }; 
 
 
-type Exercise = {
-  id: number;
-  name: string;
-  sets: number;
-  reps: number;
-  weight: number;
-};
+// Workouts are saved in Supabase (see src/lib/workouts.ts)
+type Workout = SavedWorkout;
 
-type Workout = {
-  id: number;
-  name: string;
-  minutes: number;
-  date: string;
-  workoutType?: 'Strength' | 'Cardio' | 'Mobility';
-  intensity?: 'Light' | 'Moderate' | 'Hard';
-  exercises?: Exercise[];
-  notes?: string;
-};
+// Alert.alert shows nothing in a web browser, so use the browser's alert there
+function notify(title: string, message: string) {
+  if (Platform.OS === 'web') window.alert(title + '\n\n' + message);
+  else Alert.alert(title, message);
+}
 
 const dateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -140,58 +137,58 @@ async function saveProfile(changes: ProfileChanges) {
     ...previous,
     ...savedProfile,
   }));
+  await refreshData();
 }
     const [workouts, setWorkouts] = useState<Workout[]>([]);
+    const [progress, setProgress] = useState<Progress | null>(null);
+    const [saving, setSaving] = useState(false);
     const [workoutName, setWorkoutName] = useState('');
     const [duration, setDuration] = useState('');
-    const [challengeJoined, setChallengeJoined] = useState(false);
-    const [challengeClaimed, setChallengeClaimed] = useState(false); 
+
+    // XP, level, streak and workout history all come from the backend
+    async function refreshData() {
+      try {
+        const [nextProgress, nextWorkouts] = await Promise.all([
+          fetchProgress(),
+          fetchWorkouts(),
+        ]);
+        setProgress(nextProgress);
+        setWorkouts(nextWorkouts);
+      } catch (error) {
+        notify(
+          'Could not load your progress',
+          error instanceof Error ? error.message : 'Try again in a moment.'
+        );
+      }
+    }
+
+    useEffect(() => {
+      refreshData();
+    }, []);
+
     const now = new Date();
-    const today = dateKey(now); 
+    const today = dateKey(now);
+    // weeks run Monday to Sunday, the same as weekly goals on the backend
     const weekStart = new Date(
-        now.getFullYear(), 
-        now.getMonth(), 
-        now.getDate() - now.getDay()
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - ((now.getDay() + 6) % 7)
     );
 
     const week = Array.from({ length: 7 }, (_, index) => {
-        const date = new Date(weekStart); date.setDate(date.getDate() + index); return date; 
-    }); 
+        const date = new Date(weekStart); date.setDate(date.getDate() + index); return date;
+    });
     const weeklyKeys = new Set(week.map(dateKey));
     const weeklyWorkouts = workouts.filter(w => weeklyKeys.has(w.date));
-    const target = Number(profile.weeklyTarget) || 0;
-    const activeDays = new Set(workouts.map(w=> w.date));
+    const target = progress?.weeklyTarget ?? 0;
+    const streak = progress?.streak ?? 0;
+    const xp = progress?.totalXp ?? 0;
+    const level = progress?.level ?? 1;
+    const levelXp = progress?.xpIntoLevel ?? 0;
+    const nextLevelXp = progress?.xpForNextLevel ?? 100;
+    const medals = progress?.medals ?? 0;
 
-    // Basic calendar streak preview 
-    let streak = 0; 
-    const cursor = new Date(now);
-    if (!activeDays.has(today)) cursor.setDate(cursor.getDate() -1); 
-    while (activeDays.has(dateKey(cursor))) { streak ++; cursor.setDate(cursor.getDate() - 1); }
-
-    // Reward rules for UI testing only: >=10 minutes, first two/day +50 each
-    const rewardedPerDay: Record<string, number> = {};
-    const workoutXp = workouts.reduce((sum, workout) => {
-        const used = rewardedPerDay[workout.date] || 0;
-        if (workout.minutes < 10 || used >= 2) return sum;
-        rewardedPerDay[workout.date] = used + 1; return sum + 50; 
-    }, 0);
-    const xp = workoutXp + (challengeClaimed ? 40 : 0);
-
-    // Level 1 starts at 0 XP; provisional thresholds 100, 200, 300... per level
-    let level = 1; 
-    let levelXp = xp; 
-    while (levelXp >= 100 * level) { 
-      levelXp -= 100 * level; 
-      level++; 
-    }
-    const nextLevelXp = 100 * level; 
-    const challengeReady =   
-      challengeJoined && 
-      workouts.some(w => w.date === today && w.minutes >= 10);
-
-    const medals = challengeClaimed ? 1 : 0; 
-    
-function saveWorkout(details: {
+async function saveWorkout(details: {
   workoutType: 'Strength' | 'Cardio' | 'Mobility';
   intensity: 'Light' | 'Moderate' | 'Hard';
   date: string;
@@ -212,7 +209,7 @@ function saveWorkout(details: {
     !Number.isInteger(minutes) ||
     minutes <= 0
   ) {
-    Alert.alert(
+    notify(
       'Check workout',
       'Enter a workout name and a positive whole number of minutes.'
     );
@@ -224,7 +221,7 @@ function saveWorkout(details: {
     /^(\d{4})-(\d{2})-(\d{2})$/.exec(details.date);
 
   if (!dateMatch) {
-    Alert.alert('Invalid date', 'Use YYYY-MM-DD format.');
+    notify('Invalid date', 'Use MM/DD/YYYY format.');
     return;
   }
 
@@ -236,7 +233,7 @@ function saveWorkout(details: {
     parsedDate.getMonth() !== month - 1 ||
     parsedDate.getDate() !== day
   ) {
-    Alert.alert('Invalid date', 'Enter a real calendar date.');
+    notify('Invalid date', 'Enter a real calendar date.');
     return;
   }
 
@@ -253,31 +250,49 @@ function saveWorkout(details: {
   );
 
   if (invalidExercise) {
-    Alert.alert(
+    notify(
       'Check exercises',
       'Enter valid sets, reps, and weight for each exercise.'
     );
     return;
   }
 
-  // Save the complete workout
-  setWorkouts(previous => [
-    ...previous,
-    {
-      id: Date.now(),
-      name: workoutName.trim(),
+  // Send it to the backend, which works out the XP, streak and rewards
+  if (saving) return;
+  setSaving(true);
+
+  try {
+    const reward = await logWorkout({
+      title: workoutName,
       minutes,
       date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
       workoutType: details.workoutType,
       intensity: details.intensity,
       exercises: details.exercises,
       notes: details.notes,
-    },
-  ]);
+    });
 
-  setWorkoutName('');
-  setDuration('');
-  setScreen('Home');
+    const lines: string[] = [];
+    if (reward.earnedXp) lines.push(`+${reward.xpGained} XP`);
+    else lines.push('Saved. Workouts earn XP when they are 10+ minutes, up to 2 a day.');
+    if (reward.leveledUp) lines.push(`You reached level ${reward.level}!`);
+    if (reward.streak > 0) lines.push(`Streak: ${reward.streak} day${reward.streak === 1 ? '' : 's'}`);
+    if (reward.newAchievements.length > 0) lines.push('New badge unlocked!');
+    notify(reward.leveledUp ? 'Level up!' : 'Workout saved', lines.join('\n'));
+
+    setWorkoutName('');
+    setDuration('');
+    setScreen('Home');
+    await refreshData();
+  } catch (error) {
+    if (error instanceof WorkoutRejected) {
+      notify('Check workout', error.details.length > 0 ? error.details.join('\n') : error.message);
+    } else {
+      notify('Not saved', error instanceof Error ? error.message : 'Try again.');
+    }
+  } finally {
+    setSaving(false);
+  }
 }
     const button = (label: string, action: () => void) => <Pressable accessibilityRole="button"
       onPress={action} style ={styles.primaryButton}><Text style={styles.buttonText}>{label}</Text></Pressable>;
@@ -367,7 +382,7 @@ if (profileError) {
 {screen === 'Home' && (
   <HomeScreen
     displayName={profile.displayName}
-    challengesCompleted={challengeClaimed ? 1 : 0}
+    challengesCompleted={progress?.challengesCompleted ?? 0}
     medalsEarned={medals}
     workoutsLoggedToday={
       workouts.filter(workout => workout.date === today).length
@@ -405,6 +420,7 @@ if (profileError) {
            'Starter'
         }
         streak={streak}
+        bestStreak={progress?.bestStreak}
       />
     }
     onMedals={() => setScreen('Profile')}
