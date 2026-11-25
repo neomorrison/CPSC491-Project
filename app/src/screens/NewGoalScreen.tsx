@@ -11,12 +11,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 const goalTypes = [
     {
-        id: 'weekly_workouts', 
+        id: 'workouts_per_week', // matches GoalType in src/lib/goals.ts
         label: 'Workouts / week', 
         targetLabel: 'Weekly target', 
     }, 
     {
-        id: 'weekly_minutes', 
+        id: 'active_days_per_week', 
         label:'Active days / week', 
         targetLabel: 'weekly active days target', 
     }, 
