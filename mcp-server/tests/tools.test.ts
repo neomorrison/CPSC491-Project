@@ -4,6 +4,7 @@ import {
   getGoals,
   getPlan,
   getProgress,
+  getWeeklySummary,
   getWorkouts,
   isDate,
   updateWorkoutPlan,
@@ -28,6 +29,7 @@ describe("read permission", () => {
       await getGoals(off()),
       await getProgress(off()),
       await getPlan(off(), {}),
+      await getWeeklySummary(off()),
     ]) {
       expect(result.isError).toBe(true);
       expect(result.text).toMatch(/not allowed AI assistants to read/);
@@ -67,6 +69,7 @@ describe("get_workouts", () => {
     expect(body.count).toBe(1);
     expect(body.workouts[0]).toEqual({
       date: "2026-11-02",
+      title: "Leg day",
       type: "strength",
       minutes: 40,
       startedAt: "07:30",
@@ -217,5 +220,107 @@ describe("isDate", () => {
     expect(isDate("2026-02-30")).toBe(false);
     expect(isDate("11/02/2026")).toBe(false);
     expect(isDate(20261102)).toBe(false);
+  });
+});
+
+describe("get_weekly_summary", () => {
+  // NOW is Wednesday Nov 4, so the week is Mon Nov 2 to Sun Nov 8 and last week starts Oct 26
+  function workout(date: string, minutes: number, type = "strength") {
+    return { workout_date: date, title: null, type, minutes, started_at: null, effort: null, notes: null, earned_xp: true, workout_exercises: [] };
+  }
+  const week = (workouts: ReturnType<typeof workout>[], changes = {}) =>
+    fakeData({ getWorkouts: async () => workouts, getPlans: async () => [], ...changes });
+
+  it("asks for last week and this week, in the user's time zone", async () => {
+    const data = fakeData();
+    const body = JSON.parse((await getWeeklySummary(data, NOW)).text);
+    expect(data.calls.workouts[0]).toEqual({ from: "2026-10-26", to: "2026-11-08" });
+    expect(body.today).toBe("2026-11-04");
+    expect(body.weekStart).toBe("2026-11-02");
+    expect(body.daysIntoWeek).toBe(3);
+  });
+
+  it("adds up this week and last week separately", async () => {
+    const data = week([
+      workout("2026-11-02", 40),
+      workout("2026-11-03", 20, "cardio"),
+      workout("2026-11-03", 15, "yoga"),
+      workout("2026-10-28", 30),
+    ]);
+    const body = JSON.parse((await getWeeklySummary(data, NOW)).text);
+    expect(body.thisWeek.workouts).toBe(3);
+    expect(body.thisWeek.minutes).toBe(75);
+    expect(body.thisWeek.activeDays).toBe(2);
+    expect(body.thisWeek.byType).toEqual({
+      strength: { workouts: 1, minutes: 40 },
+      cardio: { workouts: 1, minutes: 20 },
+      yoga: { workouts: 1, minutes: 15 },
+    });
+    expect(body.lastWeek).toEqual({ workouts: 1, minutes: 30, activeDays: 1, plannedDaysDone: 1, plannedDaysTotal: 3 });
+    expect(body.comparedToLastWeek.workouts).toBe(2);
+    expect(body.comparedToLastWeek.minutes).toBe(45);
+  });
+
+  it("sorts planned days into done, missed, and still to come", async () => {
+    // planned mon, wed, fri. Monday was skipped, today (Wednesday) and Friday haven't happened yet.
+    let body = JSON.parse((await getWeeklySummary(week([]), NOW)).text);
+    expect(body.thisWeek.plannedDaysDone).toEqual([]);
+    expect(body.thisWeek.plannedDaysMissed).toEqual(["mon"]);
+    expect(body.thisWeek.plannedDaysLeft).toEqual(["wed", "fri"]);
+
+    body = JSON.parse((await getWeeklySummary(week([workout("2026-11-02", 30), workout("2026-11-04", 30)]), NOW)).text);
+    expect(body.thisWeek.plannedDaysDone).toEqual(["mon", "wed"]);
+    expect(body.thisWeek.plannedDaysMissed).toEqual([]);
+    expect(body.thisWeek.plannedDaysLeft).toEqual(["fri"]);
+  });
+
+  it("includes streak, level, and goal progress", async () => {
+    const body = JSON.parse((await getWeeklySummary(fakeData(), NOW)).text);
+    expect(body.streak).toEqual({ current: 4, best: 9, atRisk: false });
+    expect(body.level).toBe(3);
+    expect(body.totalXp).toBe(320);
+    expect(body.goals).toEqual([{ type: "workouts_per_week", name: null, target: 3, progress: 1, doneThisWeek: false }]);
+  });
+
+  it("shows how far along this week's plan is, preferring the active plan", async () => {
+    const plans = [
+      { id: "s", week_start: "2026-11-02", status: "suggested", created_by: "assistant", note: null, plan_items: [] },
+      {
+        id: "a",
+        week_start: "2026-11-02",
+        status: "active",
+        created_by: "assistant",
+        note: null,
+        plan_items: [
+          { day: "mon", workout_type: "strength", minutes: 30, details: null },
+          { day: "thu", workout_type: "cardio", minutes: 30, details: null },
+        ],
+      },
+    ];
+    const data = week([workout("2026-11-02", 30)], { getPlans: async () => plans });
+    const body = JSON.parse((await getWeeklySummary(data, NOW)).text);
+    expect(body.plan.planId).toBe("a");
+    expect(body.plan.days).toEqual([
+      { day: "mon", workoutType: "strength", minutes: 30, done: true },
+      { day: "thu", workoutType: "cardio", minutes: 30, done: false },
+    ]);
+  });
+
+  it("works for a user with nothing logged yet", async () => {
+    const data = week([], { getStreak: async () => null, getProgress: async () => null, getGoalProgress: async () => [] });
+    const body = JSON.parse((await getWeeklySummary(data, NOW)).text);
+    expect(body.thisWeek.workouts).toBe(0);
+    expect(body.lastWeek.workouts).toBe(0);
+    expect(body.streak.current).toBe(0);
+    expect(body.level).toBe(1);
+    expect(body.goals).toEqual([]);
+    expect(body.plan).toBeNull();
+  });
+
+  it("treats Sunday as the last day of the week, not the first", async () => {
+    const sunday = new Date("2026-11-08T20:00:00Z");
+    const body = JSON.parse((await getWeeklySummary(week([]), sunday)).text);
+    expect(body.weekStart).toBe("2026-11-02");
+    expect(body.daysIntoWeek).toBe(7);
   });
 });

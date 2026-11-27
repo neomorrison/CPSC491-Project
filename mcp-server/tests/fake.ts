@@ -31,6 +31,7 @@ export function fakeData(changes: Partial<FitnessData> = {}, saveAnswer?: SavePl
       return [
         {
           workout_date: "2026-11-02",
+          title: "Leg day",
           type: "strength",
           minutes: 40,
           started_at: "07:30:00",
@@ -44,6 +45,9 @@ export function fakeData(changes: Partial<FitnessData> = {}, saveAnswer?: SavePl
     getProgress: async () => ({ total_xp: 320, level: 3 }),
     getStreak: async () => ({ current_streak: 4, best_streak: 9, freezes_left: 1, at_risk: false }),
     getBadges: async () => [{ achievement_id: "first_workout", name: "First Step", unlocked_at: "2026-10-01T10:00:00Z" }],
+    getGoalProgress: async () => [
+      { goal_id: "g1", type: "workouts_per_week", name: null, target: 3, progress: 1, done_this_week: false },
+    ],
     getPlans: async (weekStart) => {
       calls.plans.push(weekStart);
       return [

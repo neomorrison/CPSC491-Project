@@ -1,4 +1,4 @@
-// Builds the MCP server and registers the six tools.
+// Builds the MCP server and registers the seven tools and the weekly review prompt.
 // The tool logic is in tools.ts. This file is only the descriptions and input shapes
 // the assistant sees.
 
@@ -10,6 +10,7 @@ import {
   getGoals,
   getPlan,
   getProgress,
+  getWeeklySummary,
   getWorkouts,
   updateWorkoutPlan,
   type ToolResult,
@@ -31,6 +32,21 @@ async function run(work: () => Promise<ToolResult>) {
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "use YYYY-MM-DD");
 
+// the same list the app and the save-plan function use
+const WORKOUT_TYPES = [
+  "strength",
+  "cardio",
+  "walking",
+  "yoga",
+  "pilates",
+  "mobility",
+  "hiking",
+  "swimming",
+  "climbing",
+  "sports",
+  "other",
+] as const;
+
 const planShape = {
   weekStart: date.describe("The Monday the plan starts on, YYYY-MM-DD. This week or one of the next 4 weeks."),
   note: z.string().max(500).optional().describe("A short explanation of the plan for the user. No medical advice."),
@@ -38,7 +54,7 @@ const planShape = {
     .array(
       z.object({
         day: z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-        workoutType: z.enum(["strength", "cardio", "yoga", "sports", "other"]),
+        workoutType: z.enum(WORKOUT_TYPES),
         minutes: z.number().int().describe("Session length, 10 to 120 minutes"),
         details: z.string().max(300).optional().describe("What to do in the session"),
       }),
@@ -88,6 +104,19 @@ export function createServer(data: FitnessData): McpServer {
   );
 
   server.registerTool(
+    "get_weekly_summary",
+    {
+      title: "Get weekly summary",
+      description:
+        "Read the numbers for feedback on the user's week: workouts, minutes and active days this week and " +
+        "last week, which planned days were done, missed or still to come, streak, level, goal progress, and " +
+        "how far along this week's plan is. Use it before giving feedback or suggesting next week's plan.",
+      annotations: READ_ONLY,
+    },
+    () => run(() => getWeeklySummary(data)),
+  );
+
+  server.registerTool(
     "get_plan",
     {
       title: "Get workout plans",
@@ -130,5 +159,32 @@ export function createServer(data: FitnessData): McpServer {
     (args) => run(() => updateWorkoutPlan(data, args)),
   );
 
+  // A ready-made request the user can pick in their assistant app: feedback on the week,
+  // then a plan for next week. It only tells the assistant how to use the tools above.
+  server.registerPrompt(
+    "weekly_review",
+    {
+      title: "Weekly review",
+      description: "Feedback on this week's workouts, then a suggested plan for next week.",
+    },
+    () => ({
+      messages: [{ role: "user" as const, content: { type: "text" as const, text: WEEKLY_REVIEW } }],
+    }),
+  );
+
   return server;
 }
+
+const WEEKLY_REVIEW = [
+  "Give me feedback on my week of workouts, then suggest a plan for next week.",
+  "",
+  "1. Call get_weekly_summary and get_goals. Call get_workouts if you need the details of a workout.",
+  "2. Feedback first, in a few short sentences: what I did (use the real numbers), how it compares with",
+  "   last week and with my planned days, and how my goals and streak are going. Say what went well before",
+  "   what to change. If the week isn't over, say so and don't count the days still to come as missed.",
+  "3. Then suggest next week's plan with create_workout_plan. Base it on what I actually did, not on an ideal",
+  "   week: if I missed days, make it easier before making it harder. Put a one or two sentence reason in the note.",
+  "4. General exercise guidance only. No medical advice, diagnoses, or injury treatment. If I mention pain or",
+  "   an injury, tell me to see a professional and don't plan around it.",
+  "5. If a tool says I haven't turned a permission on, tell me which switch to turn on in the app and stop.",
+].join("\n");

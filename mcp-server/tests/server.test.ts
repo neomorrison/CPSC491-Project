@@ -24,7 +24,7 @@ function textOf(result: unknown): string {
 }
 
 describe("MCP server", () => {
-  it("offers exactly the six tools from the README", async () => {
+  it("offers exactly the seven tools from the README", async () => {
     const client = await connectClient(fakeData());
     const names = (await client.listTools()).tools.map((t) => t.name).sort();
     expect(names).toEqual([
@@ -32,6 +32,7 @@ describe("MCP server", () => {
       "get_goals",
       "get_plan",
       "get_progress",
+      "get_weekly_summary",
       "get_workouts",
       "update_workout_plan",
     ]);
@@ -45,13 +46,43 @@ describe("MCP server", () => {
     }
   });
 
-  it("marks the four read tools read-only and the plan tools not", async () => {
+  it("marks the five read tools read-only and the plan tools not", async () => {
     const client = await connectClient(fakeData());
     const tools = (await client.listTools()).tools;
     for (const t of tools) {
       const readOnly = t.annotations?.readOnlyHint;
       expect(readOnly).toBe(t.name.startsWith("get_"));
     }
+  });
+
+  it("accepts the newer workout types in a plan", async () => {
+    const data = fakeData();
+    const client = await connectClient(data);
+    const result = await client.callTool({
+      name: "create_workout_plan",
+      arguments: { weekStart: "2026-11-09", items: [{ day: "sat", workoutType: "hiking", minutes: 60 }] },
+    });
+    expect(result.isError).toBeFalsy();
+    expect(data.calls.saved.length).toBe(1);
+  });
+
+  it("answers get_weekly_summary", async () => {
+    const client = await connectClient(fakeData());
+    const result = await client.callTool({ name: "get_weekly_summary", arguments: {} });
+    expect(result.isError).toBeFalsy();
+    expect(JSON.parse(textOf(result)).streak.current).toBe(4);
+  });
+
+  it("offers the weekly review prompt, which asks for feedback and forbids medical advice", async () => {
+    const client = await connectClient(fakeData());
+    const prompts = (await client.listPrompts()).prompts.map((p) => p.name);
+    expect(prompts).toEqual(["weekly_review"]);
+
+    const prompt = await client.getPrompt({ name: "weekly_review" });
+    const text = (prompt.messages[0].content as { text: string }).text;
+    expect(text).toMatch(/get_weekly_summary/);
+    expect(text).toMatch(/feedback/i);
+    expect(text).toMatch(/No medical advice/);
   });
 
   it("answers a read tool call", async () => {
