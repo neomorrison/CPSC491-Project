@@ -10,7 +10,7 @@ import {
   errorMessage,
   fetchChallenges,
 } from '../lib/challenges';
-import type { ChallengeData } from '../lib/challenges';
+import type { ChallengeData, Medal } from '../lib/challenges';
 
 type Props = {
   onBack: () => void;
@@ -44,6 +44,34 @@ export default function AchievementsScreen({ onBack }: Props) {
     };
   }, [reload]);
 
+  // Gala's long term challenges unlock on their own, so they're medals with category "challenge"
+  const medals = (data?.medals ?? []).filter(medal => medal.category !== 'challenge');
+  const challengeMedals = (data?.medals ?? []).filter(medal => medal.category === 'challenge');
+
+  function renderMedal(medal: Medal) {
+    const earned = data?.earnedMedals.find(
+      item => item.achievement_id === medal.id
+    );
+
+    return (
+      <View key={medal.id} style={styles.card}>
+        <View style={styles.artwork} />
+
+        <Text style={styles.name}>{medal.name}</Text>
+
+        {!!medal.description && (
+          <Text style={styles.body}>
+            {medal.description}
+          </Text>
+        )}
+
+        <Text style={styles.status}>
+          {earned ? 'Earned' : 'Not earned yet'}
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.screen}>
       <Pressable
@@ -73,39 +101,31 @@ export default function AchievementsScreen({ onBack }: Props) {
           </Pressable>
         </View>
       ) : (
-        <View style={styles.grid}>
-          {data?.medals.map(medal => {
-            const earned = data.earnedMedals.find(
-              item => item.achievement_id === medal.id
-            );
+        <View>
+          <Text style={styles.sectionTitle}>Medals</Text>
+          <View style={styles.grid}>
+            {medals.map(renderMedal)}
 
-            return (
-              <View key={medal.id} style={styles.card}>
-                <View style={styles.artwork} />
+            {data?.medals.length === 0 && (
+              <Text style={styles.body}>
+                No medals have been added yet.
+              </Text>
+            )}
+          </View>
 
-                <Text style={styles.name}>{medal.name}</Text>
-
-                {!!medal.description && (
-                  <Text style={styles.body}>
-                    {medal.description}
-                  </Text>
-                )}
-
-                <Text style={styles.status}>
-                  {earned ? 'Earned' : 'Not earned yet'}
-                </Text>
+          {challengeMedals.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>Challenge medals</Text>
+              <View style={styles.grid}>
+                {challengeMedals.map(renderMedal)}
               </View>
-            );
-          })}
-
-          {data?.medals.length === 0 && (
-            <Text style={styles.body}>
-              No medals have been added yet.
-            </Text>
+            </>
           )}
 
-          <View style={styles.comingSoon}>
-            <Text style={styles.name}>More Coming Soon…</Text>
+          <View style={[styles.grid, styles.comingSoonRow]}>
+            <View style={styles.comingSoon}>
+              <Text style={styles.name}>More Coming Soon…</Text>
+            </View>
           </View>
         </View>
       )}
@@ -134,6 +154,17 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: '#494949',
     marginBottom: 16,
+  },
+  sectionTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 16,
+    color: '#494949',
+    paddingHorizontal: 18,
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  comingSoonRow: {
+    marginTop: 12,
   },
   grid: {
     flexDirection: 'row',

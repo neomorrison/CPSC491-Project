@@ -28,6 +28,7 @@ export type Medal = {
   id: string;
   name: string;
   description: string;
+  category?: 'medal' | 'challenge'; // challenge medals are Gala's long term challenges
 };
 
 export type EarnedMedal = {
@@ -84,7 +85,7 @@ export async function fetchChallenges(): Promise<ChallengeData> {
 
     supabase
       .from('achievements')
-      .select('id, name, description')
+      .select('*')
       .order('name'),
 
     supabase

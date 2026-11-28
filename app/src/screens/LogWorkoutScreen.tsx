@@ -5,7 +5,25 @@ import {
   TextInput,
   Pressable,
   StyleSheet,
+  Switch,
 } from 'react-native';
+import type { WorkoutType } from '../lib/workouts';
+
+// every type the backend accepts. The medals use them, for example
+// Finding Balance needs a yoga or pilates workout and Breezy needs walks
+const WORKOUT_TYPES: WorkoutType[] = [
+  'Strength',
+  'Cardio',
+  'Walking',
+  'Yoga',
+  'Pilates',
+  'Mobility',
+  'Hiking',
+  'Swimming',
+  'Climbing',
+  'Sports',
+  'Other',
+];
 
 type LogWorkoutScreenProps = {
   workoutName: string;
@@ -13,7 +31,8 @@ type LogWorkoutScreenProps = {
   onWorkoutNameChange: (value: string) => void;
   onDurationChange: (value: string) => void;
   onSave: (details: {
-    workoutType: 'Strength' | 'Cardio' | 'Mobility';
+    workoutType: WorkoutType;
+    outdoor: boolean;
     intensity: 'Light' | 'Moderate' | 'Hard';
     date: string;
     exercises: {
@@ -38,9 +57,10 @@ export default function LogWorkoutScreen({
   onBack,
 }: LogWorkoutScreenProps) {
 
-const [workoutType, setWorkoutType] = useState<
-'Strength' | 'Cardio' | 'Mobility'
->('Strength');
+const [workoutType, setWorkoutType] = useState<WorkoutType>('Strength');
+
+// for the Fresh Air and Expeditionist medals. A hike always counts as outdoors
+const [outdoor, setOutdoor] = useState(false);
 
 const [intensity, setIntensity] = useState<
   'Light' | 'Moderate' | 'Hard'
@@ -118,6 +138,7 @@ const handleSave = () => {
     
     onSave({
       workoutType,
+      outdoor: outdoor || workoutType === 'Hiking',
       intensity,
       date: formattedDate,
       exercises: formattedExercises,
@@ -128,8 +149,8 @@ const handleSave = () => {
     <View style={styles.container}>
       <Text style={styles.title}>Log Workout</Text>
         <Text style={styles.label}>Workout type</Text>
-        <View style={styles.typeRow}>
-          {(['Strength', 'Cardio', 'Mobility'] as const).map((type) => (
+        <View style={styles.typeGrid}>
+          {WORKOUT_TYPES.map((type) => (
             <Pressable
               key={type}
               accessibilityRole="button"
@@ -137,12 +158,24 @@ const handleSave = () => {
               onPress={() => setWorkoutType(type)}
               style={[
                 styles.typeButton,
+                styles.typeGridButton,
                 workoutType === type && styles.selectedType,
               ]}
             >
               <Text style={styles.typeText}>{type}</Text>
             </Pressable>
           ))}
+        </View>
+
+        <View style={styles.outdoorRow}>
+          <Text style={styles.label}>Outdoors</Text>
+          <Switch
+            accessibilityLabel="Outdoors"
+            value={outdoor || workoutType === 'Hiking'}
+            onValueChange={setOutdoor}
+            disabled={workoutType === 'Hiking'}
+            trackColor={{ true: '#FFAA75', false: '#C2C2C2' }}
+          />
         </View>
 
       <Text style={styles.label}>Workout name</Text>
@@ -322,6 +355,23 @@ const styles = StyleSheet.create({
 typeRow: {
   flexDirection: 'row',
   gap: 8,
+},
+
+typeGrid: {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  gap: 8,
+},
+
+typeGridButton: {
+  flex: 0,
+  width: '31%',
+},
+
+outdoorRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
 },
 
 typeButton: {
