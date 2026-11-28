@@ -244,34 +244,42 @@ export async function fetchWorkouts(): Promise<SavedWorkout[]> {
   }));
 }
 
+// A workout from the app, in the shape the log-workout and edit-workout functions want
+function toBackend(workout: NewWorkout) {
+  return {
+    type: TYPE_TO_DB[workout.workoutType],
+    title: workout.title.trim() || null,
+    date: workout.date,
+    minutes: workout.minutes,
+    outdoor: workout.outdoor === true,
+    effort: INTENSITY_TO_DB[workout.intensity],
+    notes: workout.notes.trim() || null,
+    exercises: workout.exercises.map(exercise => ({
+      name: exercise.name,
+      sets: exercise.sets,
+      reps: exercise.reps,
+      weightLb: exercise.weight > 0 ? exercise.weight : null,
+    })),
+  };
+}
+
+// Turns an error from a function call into something the screen can show
+async function backendError(error: unknown): Promise<Error> {
+  // 422 means the workout failed the backend's checks; details says why
+  if (error instanceof FunctionsHttpError) {
+    const body = await error.context.json().catch(() => null);
+    return new WorkoutRejected(body?.error ?? 'Could not save the workout.', body?.details ?? []);
+  }
+  return new Error('Could not reach the server. Check your connection and try again.');
+}
+
 // Sends a new workout to the backend, which works out the XP, streak and rewards
 export async function logWorkout(workout: NewWorkout): Promise<WorkoutReward> {
   const { data, error } = await supabase.functions.invoke('log-workout', {
-    body: {
-      type: TYPE_TO_DB[workout.workoutType],
-      title: workout.title.trim() || null,
-      date: workout.date,
-      minutes: workout.minutes,
-      outdoor: workout.outdoor === true,
-      effort: INTENSITY_TO_DB[workout.intensity],
-      notes: workout.notes.trim() || null,
-      exercises: workout.exercises.map(exercise => ({
-        name: exercise.name,
-        sets: exercise.sets,
-        reps: exercise.reps,
-        weightLb: exercise.weight > 0 ? exercise.weight : null,
-      })),
-    },
+    body: toBackend(workout),
   });
 
-  if (error) {
-    // 422 means the workout failed the backend's checks; details says why
-    if (error instanceof FunctionsHttpError) {
-      const body = await error.context.json().catch(() => null);
-      throw new WorkoutRejected(body?.error ?? 'Could not save the workout.', body?.details ?? []);
-    }
-    throw new Error('Could not reach the server. Check your connection and try again.');
-  }
+  if (error) throw await backendError(error);
 
   return {
     earnedXp: data.earnedXp,
@@ -281,4 +289,92 @@ export async function logWorkout(workout: NewWorkout): Promise<WorkoutReward> {
     streak: data.streak?.current ?? 0,
     newAchievements: data.newAchievements ?? [],
   };
+}
+
+// What changed after an edit or delete. The backend takes back the old XP and works out
+// the streak, goals and challenges again, so the screen should call fetchProgress() after.
+export type WorkoutChange = {
+  xpChange: number; // can be negative
+  totalXp: number;
+  level: number;
+  streak: number;
+};
+
+function toChange(data: any): WorkoutChange {
+  return {
+    xpChange: data.xpChange ?? 0,
+    totalXp: data.totalXp ?? 0,
+    level: data.level?.level ?? data.level ?? 1,
+    streak: data.streak?.current ?? 0,
+  };
+}
+
+// Saves changes to a workout that's already logged (same fields as logWorkout)
+export async function editWorkout(workoutId: string, workout: NewWorkout): Promise<WorkoutChange> {
+  const { data, error } = await supabase.functions.invoke('edit-workout', {
+    body: { workoutId, ...toBackend(workout) },
+  });
+
+  if (error) throw await backendError(error);
+  return toChange(data);
+}
+
+// Deletes a workout. Medals and finished challenges are kept, the workout's own XP is taken back
+export async function deleteWorkout(workoutId: string): Promise<WorkoutChange> {
+  const { data, error } = await supabase.functions.invoke('edit-workout', {
+    body: { workoutId, delete: true },
+  });
+
+  if (error) throw await backendError(error);
+  return toChange(data);
+}
+
+export type WeekCount = {
+  weekStart: string; // the Monday, YYYY-MM-DD
+  workouts: number;
+  minutes: number;
+};
+
+function toDateKey(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+// Workouts and minutes for each of the last few weeks, oldest first, for the Progress chart.
+// Weeks with no workouts are included as 0 so the chart has no gaps.
+export async function fetchWeeklyCounts(weeks = 8): Promise<WeekCount[]> {
+  const userId = await signedInUserId();
+
+  // the Monday of this week, then go back
+  const today = new Date();
+  const thisMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - ((today.getDay() + 6) % 7));
+  const result: WeekCount[] = [];
+  for (let i = weeks - 1; i >= 0; i--) {
+    const monday = new Date(thisMonday);
+    monday.setDate(monday.getDate() - 7 * i);
+    result.push({ weekStart: toDateKey(monday), workouts: 0, minutes: 0 });
+  }
+
+  const { data, error } = await supabase
+    .from('workouts')
+    .select('workout_date, minutes')
+    .eq('user_id', userId)
+    .gte('workout_date', result[0].weekStart);
+
+  if (error) throw error;
+
+  for (const row of data ?? []) {
+    // the last week that starts on or before this workout's date
+    for (let i = result.length - 1; i >= 0; i--) {
+      if (row.workout_date >= result[i].weekStart) {
+        result[i].workouts++;
+        result[i].minutes += row.minutes;
+        break;
+      }
+    }
+  }
+  return result;
 }
