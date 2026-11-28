@@ -9,7 +9,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { connect } from "../src/supabase.ts";
-import { createWorkoutPlan, getGoals, getPlan, getProgress, getWorkouts, todayIn, updateWorkoutPlan } from "../src/tools.ts";
+import { createWorkoutPlan, getGoals, getPlan, getProgress, getWeeklySummary, getWorkouts, todayIn, updateWorkoutPlan } from "../src/tools.ts";
 
 const [url, anonKey] = process.argv.slice(2);
 if (!url || !anonKey) {
@@ -86,6 +86,14 @@ check("get_goals returns goal and planned days", body?.goal === "be_active" && b
 r = await getProgress(data);
 body = r.isError ? null : JSON.parse(r.text);
 check("get_progress returns XP, level, streak and a badge", body?.totalXp >= 50 && body.level >= 1 && body.streak.current === 1 && body.badges.length >= 1, r.text);
+
+r = await getWeeklySummary(data);
+body = r.isError ? null : JSON.parse(r.text);
+check(
+  "get_weekly_summary counts this week's workout and reads goals",
+  body?.thisWeek.workouts === 1 && body.thisWeek.activeDays === 1 && body.streak.current === 1 && Array.isArray(body.goals) && body.plan === null,
+  r.text,
+);
 
 r = await getPlan(data, {});
 body = r.isError ? null : JSON.parse(r.text);

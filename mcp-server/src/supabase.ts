@@ -72,7 +72,7 @@ export function supabaseData(db: SupabaseClient, userId: string): FitnessData {
           await db
             .from("workouts")
             .select(
-              "workout_date, type, minutes, started_at, effort, notes, earned_xp, workout_exercises (name, sets, reps, seconds, weight_lb)",
+              "workout_date, title, type, minutes, started_at, effort, notes, earned_xp, workout_exercises (name, sets, reps, seconds, weight_lb)",
             )
             .eq("user_id", userId)
             .gte("workout_date", from)
@@ -111,6 +111,19 @@ export function supabaseData(db: SupabaseClient, userId: string): FitnessData {
         const a = Array.isArray(r.achievements) ? r.achievements[0] : r.achievements;
         return { achievement_id: r.achievement_id, name: a?.name ?? r.achievement_id, unlocked_at: r.unlocked_at };
       });
+    },
+
+    async getGoalProgress() {
+      return (
+        check(
+          await db
+            .from("goal_progress")
+            .select("goal_id, type, name, target, progress, done_this_week")
+            .eq("user_id", userId)
+            .eq("status", "active")
+            .order("start_date"),
+        ) ?? []
+      );
     },
 
     async getPlans(weekStart) {

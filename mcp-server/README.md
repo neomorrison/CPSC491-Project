@@ -15,6 +15,12 @@ The app works fully without this. It is optional and the user has to turn it on.
 | `get_goals` | Goal, planned days, preferred time, session length, experience level, today's date |
 | `get_progress` | Level, total XP, current and best streak, freezes left, badges |
 | `get_plan` | Workout plans with their items. Optional `weekStart`, otherwise the newest plans |
+| `get_weekly_summary` | The numbers for weekly feedback: workouts, minutes and active days this week and last week, planned days done, missed and left, streak, level, goal progress, and how far along this week's plan is |
+
+**Feedback.** `get_weekly_summary` only adds up what the user logged. The assistant writes the
+feedback itself. The server also offers one prompt, `weekly_review`, that the user can pick in
+their assistant app: it asks for feedback on the week first, then a suggested plan for next week,
+and repeats the no medical advice rule.
 
 **Plan tools** (need "Suggest workout plans", `profiles.ai_can_create_plans`)
 
@@ -100,7 +106,7 @@ The server talks over stdio, so the assistant app starts it. For Claude Desktop,
 
 ```
 src/index.ts      starts the server over stdio
-src/server.ts     registers the six tools (names, descriptions, input shapes)
+src/server.ts     registers the seven tools and the weekly_review prompt
 src/tools.ts      what each tool does. No MCP or database code, so it is easy to test
 src/supabase.ts   signs in and reads the data
 src/data.ts       the types shared by the files above

@@ -1,7 +1,7 @@
 // What each tool does. No MCP or Supabase code in here, so it's easy to unit test.
 //
 // Rules from the README:
-// - The assistant can read, and it can suggest plans. That's all. There is no tool that
+// - The assistant can read (and give feedback on what it reads), and it can suggest plans. That's all. There is no tool that
 //   logs workouts, gives XP, changes streaks, or deletes anything.
 // - Reading and creating plans are separate permissions the user turns on in the app.
 //   Read tools check ai_can_read here. Plan tools are checked by the save-plan function.
@@ -86,6 +86,7 @@ export async function getWorkouts(
     count: workouts.length,
     workouts: workouts.map((w) => ({
       date: w.workout_date,
+      title: w.title,
       type: w.type,
       minutes: w.minutes,
       startedAt: w.started_at ? w.started_at.slice(0, 5) : null,
@@ -166,6 +167,135 @@ export async function getPlan(data: FitnessData, args: { weekStart?: string }): 
       })),
     })),
   });
+}
+
+const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+// mon, tue... for a YYYY-MM-DD date
+function dayOf(date: string): string {
+  return DAY_KEYS[new Date(date + "T00:00:00Z").getUTCDay()];
+}
+
+// the Monday of the week a date is in
+function mondayOf(date: string): string {
+  const daysSinceMonday = (new Date(date + "T00:00:00Z").getUTCDay() + 6) % 7;
+  return addDays(date, -daysSinceMonday);
+}
+
+function totals(workouts: { workout_date: string; minutes: number }[]) {
+  let minutes = 0;
+  const days = new Set<string>();
+  for (const w of workouts) {
+    minutes += w.minutes;
+    days.add(w.workout_date);
+  }
+  return { workouts: workouts.length, minutes: minutes, activeDays: days.size };
+}
+
+// get_weekly_summary: the numbers an assistant needs to give feedback on the user's week.
+// It only adds up what the user logged. The wording of the feedback is up to the assistant.
+export async function getWeeklySummary(data: FitnessData, now: Date = new Date()): Promise<ToolResult> {
+  const profile = await readableProfile(data);
+  if (isError(profile)) return profile;
+
+  const today = todayIn(profile.time_zone, now);
+  const weekStart = mondayOf(today);
+  const lastWeekStart = addDays(weekStart, -7);
+
+  const [workouts, streak, progress, goals, plans] = await Promise.all([
+    data.getWorkouts(lastWeekStart, addDays(weekStart, 6)),
+    data.getStreak(),
+    data.getProgress(),
+    data.getGoalProgress(),
+    data.getPlans(weekStart),
+  ]);
+
+  const thisWeek = workouts.filter((w) => w.workout_date >= weekStart);
+  const lastWeek = workouts.filter((w) => w.workout_date < weekStart);
+  const doneDays = new Set(thisWeek.map((w) => dayOf(w.workout_date)));
+  const lastWeekDays = new Set(lastWeek.map((w) => dayOf(w.workout_date)));
+
+  // planned days: done, missed (the day has passed), or still to come this week
+  const planned = profile.planned_days;
+  const done: string[] = [];
+  const missed: string[] = [];
+  const left: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const date = addDays(weekStart, i);
+    const day = dayOf(date);
+    if (!planned.includes(day)) continue;
+    if (doneDays.has(day)) done.push(day);
+    else if (date < today) missed.push(day);
+    else left.push(day);
+  }
+
+  const byType: Record<string, { workouts: number; minutes: number }> = {};
+  for (const w of thisWeek) {
+    byType[w.type] ??= { workouts: 0, minutes: 0 };
+    byType[w.type].workouts += 1;
+    byType[w.type].minutes += w.minutes;
+  }
+
+  // the plan the user is following this week, or one waiting for their answer
+  const plan = plans.find((p) => p.status === "active") ?? plans.find((p) => p.status === "suggested") ?? null;
+
+  const now7 = totals(thisWeek);
+  const before = totals(lastWeek);
+
+  return ok({
+    today: today,
+    weekStart: weekStart,
+    daysIntoWeek: dayOfWeekNumber(today),
+    thisWeek: {
+      ...now7,
+      byType: byType,
+      plannedDays: planned,
+      plannedDaysDone: done,
+      plannedDaysMissed: missed,
+      plannedDaysLeft: left,
+    },
+    lastWeek: {
+      ...before,
+      plannedDaysDone: planned.filter((day) => lastWeekDays.has(day)).length,
+      plannedDaysTotal: planned.length,
+    },
+    comparedToLastWeek: {
+      workouts: now7.workouts - before.workouts,
+      minutes: now7.minutes - before.minutes,
+      note: "This week is not finished unless daysIntoWeek is 7, so compare with care.",
+    },
+    streak: {
+      current: streak?.current_streak ?? 0,
+      best: streak?.best_streak ?? 0,
+      atRisk: streak?.at_risk ?? false,
+    },
+    level: progress?.level ?? 1,
+    totalXp: progress?.total_xp ?? 0,
+    goals: goals.map((g) => ({
+      type: g.type,
+      name: g.name,
+      target: g.target,
+      progress: g.progress,
+      doneThisWeek: g.done_this_week,
+    })),
+    plan: plan
+      ? {
+          planId: plan.id,
+          status: plan.status,
+          days: plan.plan_items.map((i) => ({
+            day: i.day,
+            workoutType: i.workout_type,
+            minutes: i.minutes,
+            done: doneDays.has(i.day),
+          })),
+        }
+      : null,
+  });
+}
+
+// 1 on Monday up to 7 on Sunday
+function dayOfWeekNumber(date: string): number {
+  return ((new Date(date + "T00:00:00Z").getUTCDay() + 6) % 7) + 1;
 }
 
 export interface PlanArgs {

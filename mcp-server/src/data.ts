@@ -23,6 +23,7 @@ export interface Exercise {
 
 export interface Workout {
   workout_date: string;
+  title: string | null;
   type: string;
   minutes: number;
   started_at: string | null;
@@ -48,6 +49,16 @@ export interface Badge {
   achievement_id: string;
   name: string;
   unlocked_at: string;
+}
+
+// one of the user's active goals with how far along they are (the goal_progress view)
+export interface GoalProgress {
+  goal_id: string;
+  type: string; // workouts_per_week, minutes_per_week, active_days_per_week, streak, total_workouts
+  name: string | null;
+  target: number;
+  progress: number; // this week for the weekly types, so far for the others
+  done_this_week: boolean;
 }
 
 export interface PlanItem {
@@ -79,6 +90,7 @@ export interface FitnessData {
   getProgress(): Promise<Progress | null>;
   getStreak(): Promise<Streak | null>;
   getBadges(): Promise<Badge[]>;
+  getGoalProgress(): Promise<GoalProgress[]>;
   // weekStart null means "the newest plans"
   getPlans(weekStart: string | null): Promise<Plan[]>;
   savePlan(body: unknown): Promise<SavePlanAnswer>;
